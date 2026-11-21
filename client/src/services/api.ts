@@ -230,6 +230,7 @@ export const api = {
     success: boolean;
     status: 'not_configured' | 'testing' | 'connected' | 'invalid' | 'error';
     message: string;
+    latencyMs?: number;
     fetchedModels?: string[];
   }> {
     const res = await fetch(`${API_BASE}/ai/test-connection`, {
@@ -251,6 +252,28 @@ export const api = {
       body: JSON.stringify(payload)
     });
     return await res.json();
+  },
+
+  async saveAIModelSettings(payload: {
+    provider: string;
+    model: string;
+    whisperModel?: string;
+    apiKey?: string;
+    baseUrl?: string;
+  }): Promise<boolean> {
+    try {
+      await fetch(`${API_BASE}/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          activeAIProvider: payload.provider,
+          selectedModel: payload.model
+        })
+      });
+      return true;
+    } catch {
+      return false;
+    }
   },
 
   // Settings

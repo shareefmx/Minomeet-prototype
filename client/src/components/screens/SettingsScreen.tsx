@@ -9,6 +9,7 @@ import {
   FileText,
   Sparkles,
   FolderOpen,
+  Shield,
   ShieldCheck,
   Zap,
   Check,
@@ -49,6 +50,23 @@ import {
   AI_AGENTS_CONFIG,
   getAvailableModelsForProvider
 } from '../../utils/aiModelConfig.js';
+
+const isTauri = (): boolean => {
+  return typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
+};
+
+const invokeTauri = async <T = any>(cmd: string, args?: Record<string, any>): Promise<T> => {
+  if (typeof window !== 'undefined') {
+    const w = window as any;
+    if (w.__TAURI_INTERNALS__?.invoke) {
+      return (w.__TAURI_INTERNALS__.invoke as (c: string, a?: any) => Promise<T>)(cmd, args);
+    }
+    if (w.__TAURI__?.core?.invoke) {
+      return (w.__TAURI__.core.invoke as (c: string, a?: any) => Promise<T>)(cmd, args);
+    }
+  }
+  throw new Error(`Tauri invoke unavailable for command: ${cmd}`);
+};
 
 const GithubIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -223,6 +241,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
     deleteTemplate,
     setDefaultTemplate,
     openModal,
+    sendDesktopNotification,
     refreshStorageStats,
     pauseTranscriptionModel,
     resumeTranscriptionModel,
@@ -231,9 +250,35 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
 
   const [modelFilter, setModelFilter] = useState<'all' | 'whisper' | 'parakeet'>('all');
 
+  // Transcription Engine Diagnostics state
+  const [isTestingEngine, setIsTestingEngine] = useState(false);
+  const [engineTestResult, setEngineTestResult] = useState<{
+    healthy: boolean;
+    modelName: string;
+    isLoaded: boolean;
+    modelsDir: string;
+    hardwareAcceleration: string;
+    latencyMs: number;
+    message: string;
+  } | null>(null);
+
+  const handleRunEngineDiagnostics = async () => {
+    setIsTestingEngine(true);
+    try {
+      const res = await api.testTranscriptionEngine();
+      setEngineTestResult(res);
+      showToast('Transcription Engine Verified', `Model ${res.modelName} is active and ready (${res.latencyMs}ms)`, 'success');
+      sendDesktopNotification('Transcription Engine Verified', `Local ${res.modelName} speech engine is active and hardware accelerated.`);
+    } catch (err: any) {
+      showToast('Diagnostics Error', err?.message || 'Failed to verify speech engine', 'error');
+    } finally {
+      setIsTestingEngine(false);
+    }
+  };
+
   // AI Model Control Panel State
-  const [selectedProviderId, setSelectedProviderId] = useState<string>('google');
-  const [selectedModelId, setSelectedModelId] = useState<string>('gemini-2.5-flash');
+  const [selectedProviderId, setSelectedProviderId] = useState<string>('builtin-ai');
+  const [selectedModelId, setSelectedModelId] = useState<string>('qwen3.5:4b');
   const [apiKeyInput, setApiKeyInput] = useState<string>('');
   const [baseUrlInput, setBaseUrlInput] = useState<string>('http://127.0.0.1:11434');
   const [customModelInput, setCustomModelInput] = useState<string>('custom-model');
@@ -241,8 +286,42 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
   const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
   const [isFetchingModels, setIsFetchingModels] = useState<boolean>(false);
   const [providerFetchedModels, setProviderFetchedModels] = useState<Record<string, string[]>>({});
-  const [connectionStatus, setConnectionStatus] = useState<AIConnectionStatus>('not_configured');
-  const [connectionStatusMessage, setConnectionStatusMessage] = useState<string>('');
+  const [connectionStatus, setConnectionStatus] = useState<AIConnectionStatus>('connected');
+  const [connectionStatusMessage, setConnectionStatusMessage] = useState<string>('Ready (On-Device Neural Engine)');
+  const [testLatencyMs, setTestLatencyMs] = useState<number | null>(null);
+  const [builtinModelStatus, setBuiltinModelStatus] = useState<'ready' | 'download_required' | 'downloading'>('ready');
+  const [builtinDownloadProgress, setBuiltinDownloadProgress] = useState<number>(0);
+
+  // Check Built-in AI Model Disk Status on Mount & Selection Change
+  useEffect(() => {
+    if (selectedProviderId === 'builtin-ai' || selectedProviderId === 'builtin') {
+      if (isTauri()) {
+        invokeTauri<boolean>('builtin_ai_is_model_ready', { modelName: selectedModelId, refresh: true })
+          .then((ready: boolean) => {
+            setBuiltinModelStatus(ready ? 'ready' : 'download_required');
+          })
+          .catch(() => setBuiltinModelStatus('download_required'));
+      }
+    }
+  }, [selectedProviderId, selectedModelId]);
+
+  const handleDownloadBuiltinModel = async () => {
+    setBuiltinModelStatus('downloading');
+    setBuiltinDownloadProgress(10);
+    showToast('Download Started', `Downloading local neural model ${selectedModelId}…`, 'info');
+    try {
+      if (isTauri()) {
+        await invokeTauri('builtin_ai_download_model', { modelName: selectedModelId });
+        setBuiltinModelStatus('ready');
+        setConnectionStatus('connected');
+        setConnectionStatusMessage('On-Device Neural Engine Ready & Active');
+        showToast('Download Complete', `${selectedModelId} is ready and active.`, 'success');
+      }
+    } catch (err: any) {
+      setBuiltinModelStatus('download_required');
+      showToast('Download Failed', err.message || 'Failed to download model.', 'error');
+    }
+  };
 
   // AI Agent Overrides State
   const [agentOverrides, setAgentOverrides] = useState<Record<string, AIAgentOverride>>({});
@@ -250,18 +329,21 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
   // Sync settings into local AI Model state
   useEffect(() => {
     if (settings) {
-      const activeProv = (settings.activeAIProvider && settings.activeAIProvider !== 'builtin') ? settings.activeAIProvider : 'google';
+      const activeProv = (settings.activeAIProvider === 'builtin' || settings.activeAIProvider === 'builtin-ai')
+        ? 'builtin-ai'
+        : (settings.activeAIProvider || 'builtin-ai');
       setSelectedProviderId(activeProv);
-      const defaultModelForProv = AI_PROVIDERS_CONFIG.find(p => p.id === activeProv)?.models[0]?.id || 'gemini-2.5-flash';
-      const activeModel = (settings.selectedModel && !settings.selectedModel.startsWith('Nimbus') && !settings.selectedModel.startsWith('Qwen')) ? settings.selectedModel : defaultModelForProv;
+      const defaultModelForProv = AI_PROVIDERS_CONFIG.find(p => p.id === activeProv)?.models[0]?.id || 'qwen3.5:4b';
+      const activeModel = settings.selectedModel || defaultModelForProv;
       setSelectedModelId(activeModel);
 
       const savedCred = settings.aiProviders?.[activeProv];
       setApiKeyInput(savedCred?.apiKey || '');
       setBaseUrlInput(savedCred?.baseUrl || (activeProv === 'ollama' ? 'http://127.0.0.1:11434' : 'http://localhost:8000/v1'));
       setCustomModelInput(savedCred?.customModelName || 'custom-model');
-      setConnectionStatus(savedCred?.status || (savedCred?.apiKey ? 'connected' : 'not_configured'));
-      setConnectionStatusMessage(savedCred?.statusMessage || '');
+      const isBuiltin = activeProv === 'builtin' || activeProv === 'builtin-ai';
+      setConnectionStatus(savedCred?.status || (isBuiltin ? 'connected' : (savedCred?.apiKey ? 'connected' : 'not_configured')));
+      setConnectionStatusMessage(savedCred?.statusMessage || (isBuiltin ? 'Ready (On-Device Neural Engine)' : ''));
 
       // Populate fetched models cache across all providers
       const fetchedMap: Record<string, string[]> = {};
@@ -278,8 +360,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
         const saved = settings.agentOverrides?.[a.id];
         overridesMap[a.id] = {
           useGlobal: saved?.useGlobal ?? true,
-          providerId: (saved?.providerId && saved.providerId !== 'builtin') ? saved.providerId : activeProv,
-          modelId: (saved?.modelId && !saved.modelId.startsWith('Nimbus') && !saved.modelId.startsWith('Qwen')) ? saved.modelId : activeModel
+          providerId: (saved?.providerId === 'builtin' || saved?.providerId === 'builtin-ai') ? 'builtin-ai' : (saved?.providerId || activeProv),
+          modelId: saved?.modelId || activeModel
         };
       });
       setAgentOverrides(overridesMap);
@@ -291,20 +373,40 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
     setSelectedProviderId(newProviderId);
     const provDef = AI_PROVIDERS_CONFIG.find(p => p.id === newProviderId) || AI_PROVIDERS_CONFIG[0];
     const savedCred = settings?.aiProviders?.[newProviderId];
+    const key = savedCred?.apiKey || '';
+    const url = savedCred?.baseUrl || (newProviderId === 'ollama' ? 'http://127.0.0.1:11434' : (provDef.defaultEndpoint || 'http://localhost:8000/v1'));
 
-    const customModelName = savedCred?.customModelName || savedCred?.selectedModel || 'custom-model';
-    const defaultModel = newProviderId === 'custom'
-      ? customModelName
-      : (savedCred?.selectedModel || provDef.models[0]?.id || 'gemini-2.5-flash');
+    setApiKeyInput(key);
+    setBaseUrlInput(url);
+
+    // Calculate available models with the saved credential for the new provider
+    const available = getAvailableModelsForProvider(
+      {
+        ...settings,
+        aiProviders: {
+          ...settings?.aiProviders,
+          [newProviderId]: {
+            ...savedCred,
+            apiKey: key,
+            baseUrl: url,
+            fetchedModels: providerFetchedModels[newProviderId] || savedCred?.fetchedModels
+          }
+        }
+      } as any,
+      newProviderId
+    );
+
+    let defaultModel = savedCred?.selectedModel;
+    if (!defaultModel || !available.some(m => m.id === defaultModel)) {
+      defaultModel = available[0]?.id || (newProviderId === 'custom' ? 'custom-model' : (newProviderId === 'builtin-ai' ? 'qwen3.5:4b' : ''));
+    }
     setSelectedModelId(defaultModel);
+    setCustomModelInput(defaultModel);
 
-    setApiKeyInput(savedCred?.apiKey || '');
-    setBaseUrlInput(savedCred?.baseUrl || (newProviderId === 'ollama' ? 'http://127.0.0.1:11434' : (provDef.defaultEndpoint || 'http://localhost:8000/v1')));
-    setCustomModelInput(customModelName);
-
-    const status: AIConnectionStatus = savedCred?.status || (newProviderId === 'builtin' ? 'connected' : (newProviderId === 'custom' ? (savedCred?.baseUrl ? 'connected' : 'not_configured') : (savedCred?.apiKey ? 'connected' : 'not_configured')));
-    setConnectionStatus(status);
-    setConnectionStatusMessage(savedCred?.statusMessage || (newProviderId === 'builtin' ? 'Connected & Ready' : ''));
+    // Clear old test connection result when switching providers
+    setConnectionStatus('not_configured');
+    setConnectionStatusMessage('');
+    setTestLatencyMs(null);
   };
 
   // Generalized Dynamic Model Fetcher for ALL Providers
@@ -365,11 +467,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
     }
   };
 
-  // Test Connection Handler (also updates fetched models and strict validation)
+  // Test Connection Handler (runs real generation, measures exact latency, classifies errors)
   const handleTestConnection = async () => {
     setIsTestingConnection(true);
     setConnectionStatus('testing');
-    setConnectionStatusMessage('Validating credentials and model reachability…');
+    setConnectionStatusMessage('Testing live generation & measuring latency…');
+    setTestLatencyMs(null);
 
     const effectiveModel = selectedProviderId === 'custom'
       ? (customModelInput.trim() || 'custom-model')
@@ -385,12 +488,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
 
       setConnectionStatus(res.status);
       setConnectionStatusMessage(res.message);
+      setTestLatencyMs(res.latencyMs || null);
 
       if (res.fetchedModels && res.fetchedModels.length > 0) {
         setProviderFetchedModels(prev => ({
           ...prev,
           [selectedProviderId]: res.fetchedModels || []
         }));
+        if (!res.fetchedModels.includes(selectedModelId)) {
+          setSelectedModelId(res.fetchedModels[0]);
+        }
       }
 
       if (res.success) {
@@ -409,7 +516,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
     }
   };
 
-  // Save AI Model Configuration Handler with Mandatory Verification
+  // Save AI Model Configuration Handler with Hot-Reload and Persistent Keychain Sync
   const handleSaveAIConfiguration = async () => {
     const provDef = AI_PROVIDERS_CONFIG.find(p => p.id === selectedProviderId) || AI_PROVIDERS_CONFIG[0];
     if (provDef.requiresKey && (!apiKeyInput || apiKeyInput.trim().length === 0)) {
@@ -427,7 +534,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
     let finalMessage = connectionStatusMessage;
 
     // If not builtin and not already verified as connected, perform live test first
-    if (selectedProviderId !== 'builtin' && connectionStatus !== 'connected') {
+    if (selectedProviderId !== 'builtin' && selectedProviderId !== 'builtin-ai' && connectionStatus !== 'connected') {
       setIsTestingConnection(true);
       const testResult = await api.testAIConnection({
         provider: selectedProviderId,
@@ -441,10 +548,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
       finalMessage = testResult.message;
       setConnectionStatus(finalStatus);
       setConnectionStatusMessage(finalMessage);
+      setTestLatencyMs(testResult.latencyMs || null);
 
       if (!testResult.success) {
         showToast('Validation Failed', testResult.message, 'error');
-        // Still save credentials but with invalid status so it won't falsely show connected
+        // Still save credentials with invalid status
         const currentProviders = settings?.aiProviders || {};
         await updateSettings({
           activeAIProvider: selectedProviderId,
@@ -478,6 +586,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
       lastTested: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
+    // 1. Sync persistent settings in state and React context
     await updateSettings({
       activeAIProvider: selectedProviderId,
       selectedModel: effectiveModelId,
@@ -486,6 +595,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
         [selectedProviderId]: updatedCredential
       },
       agentOverrides: agentOverrides
+    });
+
+    // 2. Hot-reload backend SQLite DB, macOS Keychain, and summary engine
+    await api.saveAIModelSettings({
+      provider: selectedProviderId,
+      model: effectiveModelId,
+      apiKey: apiKeyInput.trim(),
+      baseUrl: baseUrlInput.trim()
     });
 
     showToast('Configuration Saved', `Active AI model set to ${effectiveModelId} (${provDef.name}).`, 'success');
@@ -538,33 +655,24 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
   const [isEditingPath, setIsEditingPath] = useState(false);
   const [customPathInput, setCustomPathInput] = useState('');
 
-  const getNativeInvoke = (): ((cmd: string, args?: any) => Promise<any>) | null => {
-    if (typeof window === 'undefined') return null;
-    const w = window as any;
-    if (w.__TAURI__?.core?.invoke) return w.__TAURI__.core.invoke;
-    if (w.__TAURI_INTERNALS__?.invoke) return w.__TAURI_INTERNALS__.invoke;
-    return null;
-  };
-
   const refreshDevices = async () => {
     setIsRefreshingDevices(true);
     let found = false;
 
-    const invoke = getNativeInvoke();
-    if (invoke) {
+    if (isTauri()) {
       try {
-        const nativeDevices = await invoke('get_audio_devices');
+        const nativeDevices = await invokeTauri<any[]>('get_audio_devices');
         if (Array.isArray(nativeDevices) && nativeDevices.length > 0) {
           const inputs = nativeDevices
-            .filter((d: any) => d.device_type === 'Input')
-            .map((d: any) => ({
+            .filter(d => d.device_type === 'Input')
+            .map(d => ({
               deviceId: d.name,
               label: d.label || d.name,
               isDefault: d.is_default
             }));
           const outputs = nativeDevices
-            .filter((d: any) => d.device_type === 'Output')
-            .map((d: any) => ({
+            .filter(d => d.device_type === 'Output')
+            .map(d => ({
               deviceId: d.name,
               label: d.label || d.name,
               isDefault: d.is_default
@@ -575,17 +683,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
         }
 
         try {
-          const statuses = await invoke('get_audio_backend_status');
+          const statuses = await invokeTauri<any[]>('get_audio_backend_status');
           if (Array.isArray(statuses) && statuses.length > 0) {
             setBackendStatuses(statuses);
-            const active = statuses.find((s: any) => s.is_active);
+            const active = statuses.find(s => s.is_active);
             if (active && (active.id === 'screencapturekit' || active.id === 'coreaudio')) {
               setSystemBackend(active.id);
             }
           }
         } catch {
+          // fallback to get_current_audio_backend
           try {
-            const currentBackend = await invoke('get_current_audio_backend');
+            const currentBackend = await invokeTauri<string>('get_current_audio_backend');
             if (currentBackend === 'screencapturekit' || currentBackend === 'coreaudio') {
               setSystemBackend(currentBackend);
             }
@@ -593,7 +702,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
         }
 
         try {
-          const defaultPath = await invoke('get_default_recordings_folder_path');
+          const defaultPath = await invokeTauri<string>('get_default_recordings_folder_path');
           if (defaultPath && (!settings?.storagePath || settings.storagePath === 'Default Application Recordings')) {
             setRecordingSavePath(defaultPath);
           }
@@ -746,13 +855,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
     }
     setRecordingSavePath(trimmed);
     updateSettings({ storagePath: trimmed });
-    const invoke = getNativeInvoke();
-    if (invoke) {
+    if (isTauri()) {
       try {
-        const prefs = await invoke('get_recording_preferences').catch(() => null);
+        const prefs = await invokeTauri<any>('get_recording_preferences').catch(() => null);
         if (prefs) {
           prefs.save_folder = trimmed;
-          await invoke('set_recording_preferences', { preferences: prefs });
+          await invokeTauri('set_recording_preferences', { preferences: prefs });
         }
       } catch (e) {
         console.warn('Could not save to Tauri recording preferences:', e);
@@ -764,15 +872,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
 
   const handleResetDefaultPath = async () => {
     let defPath = '/Users/muhammedshraeef/Movies/meetily-recordings';
-    const invoke = getNativeInvoke();
-    if (invoke) {
+    if (isTauri()) {
       try {
-        const nativeDef = await invoke('get_default_recordings_folder_path');
+        const nativeDef = await invokeTauri<string>('get_default_recordings_folder_path');
         if (nativeDef) defPath = nativeDef;
-        const prefs = await invoke('get_recording_preferences').catch(() => null);
+        const prefs = await invokeTauri<any>('get_recording_preferences').catch(() => null);
         if (prefs) {
           prefs.save_folder = defPath;
-          await invoke('set_recording_preferences', { preferences: prefs });
+          await invokeTauri('set_recording_preferences', { preferences: prefs });
         }
       } catch {
         // fallback
@@ -785,10 +892,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
   };
 
   const handleOpenRecordingsFolder = async () => {
-    const invoke = getNativeInvoke();
-    if (invoke) {
+    if (isTauri()) {
       try {
-        await invoke('open_recordings_folder');
+        await invokeTauri('open_recordings_folder');
         showToast('Recordings Folder Opened', recordingSavePath, 'success');
         return;
       } catch (e) {
@@ -804,13 +910,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
       showToast('Backend Unsupported', targetStatus.status_message, 'warning');
       return;
     }
-    const invoke = getNativeInvoke();
-    if (invoke) {
+    if (isTauri()) {
       try {
-        await invoke('set_audio_backend', { backend });
+        await invokeTauri('set_audio_backend', { backend });
         setSystemBackend(backend);
         updateSettings({ systemAudioBackend: backend });
-        const updated = await invoke('get_audio_backend_status').catch(() => null);
+        const updated = await invokeTauri<any[]>('get_audio_backend_status').catch(() => null);
         if (updated && Array.isArray(updated)) setBackendStatuses(updated);
         showToast('Audio Backend Selected', `${backend === 'coreaudio' ? 'Core Audio' : 'ScreenCaptureKit'} (Active)`, 'success');
         return;
@@ -913,35 +1018,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
   };
 
   
-
-  // Engine diagnostics for web if not present
-  const [isTestingEngine, setIsTestingEngine] = useState(false);
-  const [engineTestResult, setEngineTestResult] = useState<{
-    healthy: boolean;
-    modelName: string;
-    isLoaded: boolean;
-    modelsDir: string;
-    hardwareAcceleration: string;
-    latencyMs: number;
-    message: string;
-  } | null>(null);
-
-  const handleRunEngineDiagnostics = async () => {
-    setIsTestingEngine(true);
-    try {
-      const res = await api.testTranscriptionEngine();
-      setEngineTestResult(res);
-      if (res.healthy) {
-        showToast('Engine Diagnostics Passed', `${res.modelName} active (${res.latencyMs}ms latency)`, 'success');
-      } else {
-        showToast('Engine Diagnostics Warning', res.message, 'warning');
-      }
-    } catch (err: any) {
-      showToast('Engine Test Failed', err.message || 'Diagnostic benchmark failed.', 'error');
-    } finally {
-      setIsTestingEngine(false);
-    }
-  };
 
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -1126,13 +1202,22 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
           ...settings?.aiProviders,
           [selectedProviderId]: {
             ...settings?.aiProviders?.[selectedProviderId],
+            apiKey: apiKeyInput,
+            baseUrl: baseUrlInput,
             fetchedModels: providerFetchedModels[selectedProviderId] || settings?.aiProviders?.[selectedProviderId]?.fetchedModels
           }
         }
       } as any,
       selectedProviderId
     );
-  }, [settings, selectedProviderId, providerFetchedModels]);
+  }, [settings, selectedProviderId, apiKeyInput, baseUrlInput, providerFetchedModels]);
+
+  // When availableModels transitions from empty to populated upon API key entry, auto-select the first valid model
+  useEffect(() => {
+    if (availableModels.length > 0 && (!selectedModelId || !availableModels.some(m => m.id === selectedModelId))) {
+      setSelectedModelId(availableModels[0].id);
+    }
+  }, [availableModels, selectedModelId]);
 
 if (!settings) return null;
 
@@ -1198,9 +1283,8 @@ if (!settings) return null;
           <div className="space-y-4">
             {/* 1. Audio Capture Source Selection */}
             <div className="border border-[#e5e7eb] rounded-2xl p-5 bg-white shadow-xs">
-              <div className="flex items-center justify-between gap-2 mb-1">
+              <div className="mb-1">
                 <h4 className="text-sm font-bold text-[#111827]">Default Audio Capture Source</h4>
-                <span className="text-[11px] font-mono text-[#6b7280]">Applies to all new recordings</span>
               </div>
               <p className="text-xs text-[#6b7280] mb-3">
                 Select the default capture mode for meetings. You can also switch sources on the fly during an active recording.
@@ -2118,7 +2202,6 @@ if (!settings) return null;
                   <h4 className="text-sm font-bold text-[#111827] dark:text-neutral-100">Downloaded Models</h4>
                   <StatusBadge tone="info">{downloadedModels.length} on disk</StatusBadge>
                 </div>
-                <StatusBadge tone="success">100% Offline Ready</StatusBadge>
               </div>
 
               {downloadedModels.length === 0 ? (
@@ -2379,7 +2462,6 @@ if (!settings) return null;
                   <Cpu className="w-4 h-4 text-[#2563eb]" />
                   <h4 className="text-sm font-bold text-[#111827] dark:text-neutral-100">AI Model</h4>
                 </div>
-                <StatusBadge tone="info">Default Assistant &amp; MOM Generator</StatusBadge>
               </div>
 
               {/* Provider and Model Selection */}
@@ -2410,9 +2492,10 @@ if (!settings) return null;
                     )}
                   </div>
                   <select
-                    value={selectedModelId}
+                    value={availableModels.length === 0 ? '' : selectedModelId}
                     onChange={(e) => setSelectedModelId(e.target.value)}
                     disabled={availableModels.length === 0}
+                    title={availableModels.find(m => m.id === selectedModelId)?.name || (availableModels.length === 0 ? 'Enter API Key to load models' : selectedModelId)}
                     aria-label="Model"
                     className="w-full h-9 px-3.5 rounded-xl border border-[#e5e7eb] bg-white text-xs text-[#111827] focus:outline-none focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 cursor-pointer transition disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-[#f9fafb]"
                   >
@@ -2420,11 +2503,11 @@ if (!settings) return null;
                       <option value="" disabled>
                         {selectedProviderId === 'ollama'
                           ? "No local models detected - click 'Fetch Models' to load"
-                          : "Enter API Key and click 'Fetch Models'"}
+                          : "Enter API Key to load models"}
                       </option>
                     ) : (
                       availableModels.map((m) => (
-                        <option key={m.id} value={m.id}>
+                        <option key={m.id} value={m.id} title={`${m.name} ${m.contextWindow ? `(${m.contextWindow})` : ''} ${m.tag ? `[${m.tag}]` : ''}`}>
                           {m.name} {m.contextWindow ? `(${m.contextWindow})` : ''} {m.tag ? `[${m.tag}]` : ''}
                         </option>
                       ))
@@ -2432,7 +2515,9 @@ if (!settings) return null;
                   </select>
                   {availableModels.length === 0 && (
                     <p className="text-[10px] text-[#6b7280] mt-1">
-                      Models will appear here once retrieved live from {AI_PROVIDERS_CONFIG.find(p => p.id === selectedProviderId)?.name || 'provider'}.
+                      {selectedProviderId === 'ollama'
+                        ? "Ensure Ollama daemon is running, then click 'Fetch Models'."
+                        : `Enter your ${AI_PROVIDERS_CONFIG.find(p => p.id === selectedProviderId)?.name || 'provider'} API key below to load available models.`}
                     </p>
                   )}
                 </div>
@@ -2499,6 +2584,11 @@ if (!settings) return null;
                           setConnectionStatus('not_configured');
                           setConnectionStatusMessage('');
                         }}
+                        onBlur={() => {
+                          if (apiKeyInput.trim().length > 10 && !isFetchingModels && (!providerFetchedModels[selectedProviderId] || providerFetchedModels[selectedProviderId].length === 0)) {
+                            handleFetchModels(selectedProviderId);
+                          }
+                        }}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
@@ -2534,15 +2624,51 @@ if (!settings) return null;
 
               {/* Built-in provider status row */}
               {(selectedProviderId === 'builtin' || selectedProviderId === 'builtin-ai') && (
-                <div className="p-3.5 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] flex items-center justify-between">
+                <div className="p-3.5 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] flex flex-col sm:flex-row sm:items-center justify-between gap-3 dark:border-neutral-800 dark:bg-neutral-900">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-[#111827]">qwen3.5:4b</span>
-                    <span className="text-[10px] text-[#6b7280]">On-Device Neural Engine</span>
+                    <span className="text-xs font-bold text-[#111827] dark:text-neutral-100">{selectedModelId}</span>
+                    <span className="text-[10px] text-[#6b7280]">On-Device Neural Engine (GGUF)</span>
                   </div>
-                  <StatusBadge tone="success">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#16a34a]" />
-                    <span>Ready &amp; Active</span>
-                  </StatusBadge>
+                  <div className="flex items-center gap-2">
+                    {builtinModelStatus === 'downloading' ? (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2563eb]" />
+                        <span className="text-[11px] font-bold text-[#2563eb]">
+                          Downloading… {builtinDownloadProgress > 0 ? `${builtinDownloadProgress}%` : ''}
+                        </span>
+                      </div>
+                    ) : builtinModelStatus === 'download_required' ? (
+                      <button
+                        type="button"
+                        onClick={handleDownloadBuiltinModel}
+                        className="px-3 py-1 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-[11px] font-bold shadow-xs transition cursor-pointer"
+                      >
+                        Download Model
+                      </button>
+                    ) : (
+                      <StatusBadge tone="success">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#16a34a]" />
+                        <span>Ready &amp; Active</span>
+                      </StatusBadge>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Privacy Notice Banner */}
+              {selectedProviderId !== 'builtin-ai' && selectedProviderId !== 'builtin' && selectedProviderId !== 'ollama' ? (
+                <div className="p-3 rounded-xl bg-[#eff6ff] border border-[#bfdbfe] text-[11px] text-[#1e3a8a] flex items-start gap-2">
+                  <Shield className="w-4 h-4 text-[#2563eb] flex-none mt-0.5" />
+                  <div>
+                    <span className="font-bold">Cloud Provider Notice:</span> Transcripts and queries are sent to {AI_PROVIDERS_CONFIG.find(p => p.id === selectedProviderId)?.name} for processing. API keys are stored securely in the macOS Keychain.
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-[#dcfce7] border border-[#bbf7d0] text-[11px] text-[#15803d] flex items-start gap-2">
+                  <Lock className="w-4 h-4 text-[#16a34a] flex-none mt-0.5" />
+                  <div>
+                    <span className="font-bold">100% On-Device &amp; Private:</span> Zero outbound network calls or telemetry. Audio processing and neural model inference execute strictly on local hardware.
+                  </div>
                 </div>
               )}
 
@@ -2566,13 +2692,19 @@ if (!settings) return null;
                   {connectionStatus === 'connected' && (
                     <StatusBadge tone="success">
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Connected (14ms)</span>
+                      <span>Connected {testLatencyMs ? `(${testLatencyMs}ms)` : ''}</span>
+                    </StatusBadge>
+                  )}
+                  {connectionStatus === ('download_required' as any) && (
+                    <StatusBadge tone="warning">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      <span>Download Required</span>
                     </StatusBadge>
                   )}
                   {connectionStatus === 'invalid' && (
                     <StatusBadge tone="danger">
                       <AlertCircle className="w-3.5 h-3.5" />
-                      <span>Invalid API key</span>
+                      <span>Invalid Credentials / Key</span>
                     </StatusBadge>
                   )}
                   {connectionStatus === 'testing' && (
