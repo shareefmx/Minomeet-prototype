@@ -91,17 +91,21 @@ router.get('/:id', (req: Request, res: Response) => {
 // POST /api/meetings - create a new meeting
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { title, transcript, duration, tags, autoSummarize, template, language, model } = req.body;
+    const { title, transcript, duration, tags, autoSummarize, template, language, model, summaryStatus } = req.body;
 
     const meetingId = 'meeting-' + uuidv4().slice(0, 8);
     const meetingTitle = title || `Meeting ${new Date().toISOString().slice(0, 10)}_${new Date().toTimeString().slice(0, 5).replace(':', '-')}`;
 
-    let summary = undefined;
     const settings = storageService.getSettings();
-    if (autoSummarize && transcript && transcript.length > 0) {
+    const shouldAutoSummarize = autoSummarize !== undefined
+      ? Boolean(autoSummarize)
+      : (settings.autoSummaryOnConclude ?? settings.autoSummary ?? true);
+
+    let summary = undefined;
+    if (shouldAutoSummarize && transcript && transcript.length > 0) {
       summary = await aiService.generateMOM(
         transcript,
-        template || settings.defaultTemplate || 'Standard Meeting Notes & MOM',
+        template || settings.defaultTemplateId || settings.defaultTemplate || 'std-mom',
         language || settings.defaultLanguage || 'English',
         undefined,
         undefined,
@@ -118,6 +122,10 @@ router.post('/', async (req: Request, res: Response) => {
       duration: duration || '00:00',
       transcript: transcript || [],
       summary,
+      summaryStatus: summary ? 'completed' : (summaryStatus || 'not_generated'),
+      templateId: summary?.templateId || template || settings.defaultTemplateId || 'std-mom',
+      templateName: summary?.template || settings.defaultTemplate || 'Standard Meeting Notes & MOM',
+      sectionsData: summary?.sectionsData,
       tags: tags || ['General']
     };
 
@@ -188,10 +196,13 @@ router.post('/import', upload.single('audio'), async (req: Request, res: Respons
 
     let summary = undefined;
     const importSettings = storageService.getSettings();
-    if (autoSummarize) {
+    const shouldImportAutoSummarize = autoSummarize !== undefined
+      ? Boolean(autoSummarize)
+      : (importSettings.autoSummaryOnConclude ?? importSettings.autoSummary ?? true);
+    if (shouldImportAutoSummarize) {
       summary = await aiService.generateMOM(
         transcript,
-        template || importSettings.defaultTemplate || 'Standard Meeting Notes & MOM',
+        template || importSettings.defaultTemplateId || importSettings.defaultTemplate || 'std-mom',
         language || importSettings.defaultLanguage || 'English',
         undefined, // Explicitly undefined so resolveModel resolves the proper LLM for mom_synthesis
         undefined,
@@ -208,6 +219,10 @@ router.post('/import', upload.single('audio'), async (req: Request, res: Respons
       duration: realDuration,
       transcript,
       summary,
+      summaryStatus: summary ? 'completed' : 'not_generated',
+      templateId: summary?.templateId || template || importSettings.defaultTemplateId || 'std-mom',
+      templateName: summary?.template || importSettings.defaultTemplate || 'Standard Meeting Notes & MOM',
+      sectionsData: summary?.sectionsData,
       audioPath: file ? file.path : undefined,
       tags: isVideo ? ['Imported', 'Video'] : ['Imported', 'Audio']
     };

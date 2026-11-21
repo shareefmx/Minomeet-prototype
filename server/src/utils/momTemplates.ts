@@ -1,293 +1,472 @@
-import { MOMTemplate } from '../types/index.js';
+import { MOMTemplate, MOMTemplateSection } from '../types/index.js';
 
-export const DEFAULT_MOM_TEMPLATES: MOMTemplate[] = [
+export const BUILT_IN_TEMPLATE_IDS = [
+  'std-mom',
+  'exec-board',
+  'eng-standup',
+  'client-sales',
+  'product-design'
+] as const;
+
+export type BuiltInTemplateId = typeof BUILT_IN_TEMPLATE_IDS[number];
+
+export const OLD_BUILT_IN_IDS = [
+  'template-standard',
+  'template-executive',
+  'template-standup',
+  'template-sales',
+  'template-product',
+  'template-product-design',
+  'template-retrospective',
+  'daily_standup',
+  'standard_meeting'
+];
+
+export const BUILT_IN_TEMPLATES: MOMTemplate[] = [
+  // 1. Standard Meeting Notes & MOM
   {
-    id: 'template-standard',
+    id: 'std-mom',
     name: 'Standard Meeting Notes & MOM',
-    category: 'General & Operations',
+    category: 'General',
     description: 'Comprehensive business meeting record capturing executive summary, agreed decisions, assigned tasks with deadlines, key discussion points, and next steps.',
+    icon: 'file-text',
+    accentColor: '#2563eb',
     sections: [
-      'Executive Summary',
-      'Key Decisions Made',
-      'Action Items Matrix (Owner, Task, Due Date)',
-      'Discussion Highlights',
-      'Next Steps & Follow-ups'
+      { id: 'exec-summary', title: 'Executive Summary', type: 'text' },
+      { id: 'key-decisions', title: 'Key Decisions', type: 'bullets' },
+      { id: 'action-items', title: 'Action Items & Ownership', type: 'table' },
+      { id: 'discussion-highlights', title: 'Discussion Highlights', type: 'bullets' },
+      { id: 'next-steps', title: 'Next Steps', type: 'bullets' }
     ],
-    tableColumns: ['Owner', 'Task / Deliverable', 'Due Date', 'Status'],
-    promptInstructions: 'Generate clean, structured Minutes of Meeting (MOM). Identify the central objective, list firm decisions made, extract concrete action items with assignees and due dates, summarize top discussion points, and specify next steps.',
-    sampleDocument: `# Standard Meeting Notes & MOM
-**Meeting Title:** Weekly Cross-Functional Team Sync  
-**Date:** November 21, 2026 | **Duration:** 42 mins | **AI Model:** Built-in Neural AI (Local)  
-**Attendees:** Sarah Chen (Product), Alex Rivera (Engineering), David Kim (Operations)
-
----
-
-### Executive Summary
-The team reviewed Q4 milestone progress, finalized the infrastructure migration schedule, and aligned on customer onboardings for the upcoming release window. System reliability metrics remain at 99.98% uptime.
-
-### Key Decisions Made
-1. **Infrastructure Cutover Date:** Agreed to schedule the database cutover for Sunday at 02:00 UTC during low-traffic maintenance window.
-2. **Feature Freeze:** Enforced code freeze starting Wednesday for release stabilization.
-3. **Telemetry Standards:** Standardized on OpenTelemetry structured tracing across all microservices.
-
-### Action Items Matrix
-| Owner | Task / Deliverable | Due Date | Status |
-| :--- | :--- | :--- | :--- |
-| **Alex Rivera** | Complete database replication dry-run in staging | Nov 24, 2026 | In Progress |
-| **Sarah Chen** | Publish user-facing changelog and release notes | Nov 25, 2026 | Pending |
-| **David Kim** | Notify enterprise customers of the Sunday maintenance window | Nov 22, 2026 | Completed |
-
-### Discussion Highlights
-- Reviewed CPU and memory consumption during peak synthetic load testing.
-- Addressed latency regression in the search query pipeline; caching tier resolution deployed.
-- Discussed feedback from beta users on real-time transcript latency.
-
-### Next Steps & Follow-ups
-- Engineering pairing session on Friday at 14:00 UTC to review cutover scripts.
-- Reconvene on Monday morning for the post-migration health assessment.`,
+    tableColumns: ['Owner', 'Task', 'Due Date', 'Status'],
+    promptInstructions: 'Generate clean, professional Minutes of Meeting (MOM). Synthesize the overarching purpose into an Executive Summary. Enumerate firm Key Decisions with D-01, D-02 decision codes. Extract concrete Action Items into the structured table with assignees, due dates, and initial status. Summarize discussion highlights and list clear next steps.',
+    sampleDocument: {
+      meetingTitle: 'Q4 Strategic Execution & Cross-Functional Alignment',
+      date: 'Nov 21, 2026',
+      duration: '45 mins',
+      location: 'Executive Boardroom & Zoom Conf Room A',
+      preparedBy: 'Minomeet AI Assistant',
+      aiModel: 'Built-in Neural AI (Local)',
+      attendees: [
+        { name: 'Sarah Chen', role: 'VP of Product', attendance: 'Present' },
+        { name: 'Alex Rivera', role: 'Engineering Director', attendance: 'Present' },
+        { name: 'Marcus Vance', role: 'Head of Operations', attendance: 'Present' },
+        { name: 'Elena Rostova', role: 'Executive Sponsor', attendance: 'Remote' }
+      ],
+      agenda: [
+        '1. Review Q4 Delivery Milestones & KPI Attainment',
+        '2. Infrastructure Scaling & Production Readiness',
+        '3. Action Items Assignment & Sign-off'
+      ],
+      sectionsData: {
+        'exec-summary': 'The leadership committee convened to review key Q4 deliverables, operational benchmarks, and cross-functional dependencies across core engineering and product tracks. All milestones remain on track for end-of-quarter release with system uptime holding at 99.98% across all production environments.\n\nResource allocations for cloud infrastructure and on-device model optimization were ratified to ensure frictionless scaling into the next fiscal quarter.',
+        'key-decisions': [
+          'D-01: Approved the production rollout timeline scheduled for Sunday 02:00 UTC during low-traffic maintenance window.',
+          'D-02: Ratified mandatory zero-telemetry policy for all enterprise on-device speech processing.',
+          'D-03: Agreed on bi-weekly cross-functional standup cadence to streamline engineering deliverables.'
+        ],
+        'action-items': [
+          { Owner: 'Alex Rivera', Task: 'Conduct staging rehearsal for database replication cutover', 'Due Date': 'Friday, Nov 27', Status: 'In Progress' },
+          { Owner: 'Sarah Chen', Task: 'Publish product release notes and customer-facing changelog', 'Due Date': 'Monday, Nov 30', Status: 'Pending' },
+          { Owner: 'Marcus Vance', Task: 'Notify enterprise clients of scheduled maintenance window', 'Due Date': 'Wednesday, Nov 25', Status: 'Completed' }
+        ],
+        'discussion-highlights': [
+          'Analyzed compute resource utilization during simulated high-concurrency peak load tests.',
+          'Evaluated telemetry reporting latency and resolved edge caching constraints.',
+          'Reviewed customer sentiment survey scores indicating 94% positive adoption for real-time transcription.'
+        ],
+        'next-steps': [
+          'Circulate approved Minutes of Meeting document to all attendees within 24 hours.',
+          'Convene cutover review sync on Thursday at 14:00 UTC.'
+        ]
+      },
+      nextMeeting: 'Thursday, Nov 26, 2026 at 10:00 AM UTC',
+      distribution: 'Executive Leadership, Engineering Leads, Product Operations',
+      signoff: 'Sarah Chen (VP of Product)'
+    },
+    isBuiltIn: true,
     isDefault: true,
     isSystem: true,
     createdAt: '2026-08-20T00:00:00.000Z',
     updatedAt: '2026-08-20T00:00:00.000Z'
   },
+
+  // 2. Executive & Board Briefing
   {
-    id: 'template-executive',
-    name: 'Executive & Board Summary',
-    category: 'Leadership & Strategy',
-    description: 'High-level strategic briefing designed for executives, board directors, and C-suite leadership focusing on organizational milestones, directives, and governance.',
+    id: 'exec-board',
+    name: 'Executive & Board Briefing',
+    category: 'Leadership',
+    description: 'High-level strategic briefing designed for executives, board directors, and C-suite leadership focusing on organizational directives, governance, and capital priorities.',
+    icon: 'shield',
+    accentColor: '#7c3aed',
     sections: [
-      'Strategic Executive Briefing',
-      'Board Decisions & Approvals',
-      'Strategic Directives & Ownership',
-      'Critical Risks & Mitigations',
-      'Governance Roadmap'
+      { id: 'exec-briefing', title: 'Strategic Executive Briefing', type: 'text' },
+      { id: 'board-decisions', title: 'Board Decisions & Directives', type: 'bullets' },
+      { id: 'strategic-deliverables', title: 'Strategic Deliverables & Ownership', type: 'table' },
+      { id: 'strategic-deliberations', title: 'Strategic Deliberations', type: 'bullets' },
+      { id: 'horizon-roadmap', title: 'Horizon Roadmap', type: 'bullets' }
     ],
-    tableColumns: ['Executive Owner', 'Strategic Directive', 'Target Quarter', 'Governance Status'],
-    promptInstructions: 'Synthesize the conversation into an executive briefing document. Highlight top-level strategic implications, formal decisions/approvals, organizational risks, and key roadmap deadlines. Avoid trivial conversational remarks.',
-    sampleDocument: `# Executive & Board Summary
-**Meeting Title:** Board of Directors Q4 Strategy Briefing  
-**Date:** November 21, 2026 | **Governance Scope:** Fiscal 2027 Strategic Allocation  
-**Attendees:** Elena Rostova (CEO), Marcus Vance (CFO), Priya Patel (CTO), Board Members
-
----
-
-### Strategic Executive Briefing
-Executive leadership presented the FY27 capital expansion plan, operational expenditure models, and market penetration targets. ARR grew 38% YoY, outperforming quarterly guidance.
-
-### Board Decisions & Approvals
-1. **Unanimous Approval:** Authorized $14.5M capital allocation for AI on-device inference hardware acceleration.
-2. **Expansion Motion:** Approved European regional entity formation to satisfy local compliance requirements.
-3. **Executive Compensation:** Ratified annual compensation committee resolutions for executive performance equity.
-
-### Strategic Directives & Ownership
-| Executive Owner | Strategic Directive | Target Quarter | Governance Status |
-| :--- | :--- | :--- | :--- |
-| **Marcus Vance (CFO)** | Finalize credit facility terms with Tier-1 banking syndicate | Q1 2027 | Approved |
-| **Priya Patel (CTO)** | Deploy European isolated data boundary cluster | Q2 2027 | In Review |
-| **Elena Rostova (CEO)** | Complete strategic partnership agreements with enterprise OEMs | Q1 2027 | Active |
-
-### Critical Risks & Mitigations
-- **Market Volatility:** Currency exposure mitigated through multi-currency forward contracts.
-- **Supply Chain Lead Times:** Pre-committed purchase orders for GPU silicon with guaranteed allocation.
-
-### Governance Roadmap
-- Audit committee review scheduled for January 14, 2027.
-- Full annual board assembly confirmed for March 22, 2027.`,
+    tableColumns: ['Owner', 'Strategic Deliverable', 'Target Date', 'Status'],
+    promptInstructions: 'Synthesize conversation into an authoritative Executive & Board Briefing. Highlight high-level strategic developments, formal board resolutions (D-01, D-02), capital allocations, strategic deliverables, risk deliberations, and multi-quarter horizon roadmaps. Omit granular engineering details.',
+    sampleDocument: {
+      meetingTitle: 'Board of Directors Q4 Strategic Governance Briefing',
+      date: 'Nov 21, 2026',
+      duration: '60 mins',
+      location: 'Corporate Headquarters & Secure Video Link',
+      preparedBy: 'Office of the Corporate Secretary & Minomeet AI',
+      aiModel: 'Built-in Neural AI (Local)',
+      attendees: [
+        { name: 'Elena Rostova', role: 'Chief Executive Officer', attendance: 'Present' },
+        { name: 'Marcus Vance', role: 'Chief Financial Officer', attendance: 'Present' },
+        { name: 'Priya Patel', role: 'Chief Technology Officer', attendance: 'Present' },
+        { name: 'Jonathan Sterling', role: 'Lead Independent Director', attendance: 'Present' }
+      ],
+      agenda: [
+        '1. Fiscal 2027 Capital Budget Allocation & Operational Expenditure',
+        '2. International Data Boundary Expansion Strategy',
+        '3. Board Resolutions & Executive Directives'
+      ],
+      sectionsData: {
+        'exec-briefing': 'Executive leadership presented the FY27 capital expansion charter, financial operating projections, and international market expansion roadmap. Annual recurring revenue expanded 38% year-over-year, outpacing consensus quarterly targets while preserving an efficient operating cash burn multiple.\n\nThe board conducted extensive deliberations regarding geographic boundary isolations, regulatory compliance posture, and strategic technological differentiators in on-device AI.',
+        'board-decisions': [
+          'D-01: Unanimously approved $14.5M capital budget allocation for dedicated on-device neural hardware acceleration.',
+          'D-02: Authorized incorporation of European regional operational entity to satisfy strict data sovereignty regulations.',
+          'D-03: Ratified revised compensation committee recommendations for executive performance milestones.'
+        ],
+        'strategic-deliverables': [
+          { Owner: 'Marcus Vance (CFO)', 'Strategic Deliverable': 'Finalize syndicated credit facility documentation with Tier-1 lead banks', 'Target Date': 'Q1 2027', Status: 'Approved' },
+          { Owner: 'Priya Patel (CTO)', 'Strategic Deliverable': 'Commission isolated European data sovereign server cluster', 'Target Date': 'Q2 2027', Status: 'In Review' },
+          { Owner: 'Elena Rostova (CEO)', 'Strategic Deliverable': 'Execute strategic partnership agreements with enterprise OEM distribution partners', 'Target Date': 'Q1 2027', Status: 'Active' }
+        ],
+        'strategic-deliberations': [
+          'Deliberated on macroeconomic currency hedging strategies to protect against transatlantic foreign exchange volatility.',
+          'Assessed supply chain multi-sourcing contracts to guarantee GPU accelerator supply quotas through FY28.'
+        ],
+        'horizon-roadmap': [
+          'Audit committee compliance review scheduled for January 14, 2027.',
+          'Full annual shareholder governance assembly convened for March 22, 2027.'
+        ]
+      },
+      nextMeeting: 'January 14, 2027 at 09:00 AM EST',
+      distribution: 'Board of Directors, Executive Committee, Corporate Legal Counsel',
+      signoff: 'Jonathan Sterling (Lead Independent Director)'
+    },
+    isBuiltIn: true,
     isDefault: false,
     isSystem: true,
     createdAt: '2026-08-20T00:00:00.000Z',
     updatedAt: '2026-08-20T00:00:00.000Z'
   },
+
+  // 3. Engineering & Agile Standup
   {
-    id: 'template-standup',
-    name: 'Engineering & Daily Standup',
-    category: 'Agile & Development',
-    description: 'Fast-paced engineering alignment capturing completed work, today\'s sprint commitments, architectural decisions, technical blockers, and peer pairing.',
+    id: 'eng-standup',
+    name: 'Engineering & Agile Standup',
+    category: 'Technical',
+    description: 'Fast-paced engineering sync capturing sprint status, architecture decisions, active PRs, technical blockers, and 24-hour sprint commitments.',
+    icon: 'code',
+    accentColor: '#0891b2',
     sections: [
-      'Sprint Progress & Yesterday Deliverables',
-      'Today Commitments & PR Releases',
-      'Technical Decisions & Architecture',
-      'Blockers & Technical Impediments',
-      'Peer Pairing Assignments'
+      { id: 'sprint-status', title: 'Sprint Status & Daily Sync', type: 'text' },
+      { id: 'arch-decisions', title: 'Architectural Decisions (ADR)', type: 'bullets' },
+      { id: 'sprint-tasks', title: 'Sprint Tasks & Backlog Assignments', type: 'table' },
+      { id: 'tech-blockers', title: 'Tech Debates & Blockers', type: 'bullets' },
+      { id: 'next-24h', title: 'Next 24h Sprint Goals', type: 'bullets' }
     ],
-    tableColumns: ['Engineer', 'Ticket / PR', 'Component', 'Blocker / Status'],
-    promptInstructions: 'Extract engineering and agile standup details. Focus on code deliverables, pull request statuses, architectural/database decisions, active technical impediments/blockers, and assigned pairing tasks.',
-    sampleDocument: `# Engineering & Daily Standup
-**Sprint:** Sprint 44 — Core Reliability & Latency  
-**Date:** November 21, 2026 | **Team:** Platform Core Engineering  
-**Attendees:** Jason (Audio Engine), Maria (Tauri Rust), Kenji (Next.js UI)
-
----
-
-### Sprint Progress & Yesterday Deliverables
-- **Jason:** Merged PR #412 optimizing CircularBuffer ring-buffer memory allocations.
-- **Maria:** Implemented CoreAudio fallback for virtual audio capture on macOS Sequoia.
-- **Kenji:** Redesigned Settings Recording tab with responsive 16-band EQ visualizer.
-
-### Today Commitments & PR Releases
-- **Jason:** Benchmarking Whisper.cpp Metal inference throughput with batch size 1.
-- **Maria:** Investigating IPC latency between Tauri background worker and Next.js frontend.
-- **Kenji:** Wiring live status badges and connection testing state machines in UI.
-
-### Technical Decisions & Architecture
-- **Decision:** Keep audio processing in 16kHz mono internally before passing to speech models.
-- **Decision:** Use IPC batching for transcript events to eliminate UI thread micro-stutters.
-
-### Blockers & Technical Impediments
-| Engineer | Ticket / PR | Component | Blocker / Status |
-| :--- | :--- | :--- | :--- |
-| **Jason** | PR #419 | Speech Metal Kernel | Awaiting macOS 15.2 SDK beta test device |
-| **Maria** | CORE-882 | SQLite WAL Mode | Resolved: File locking issue on Windows fixed |
-
-### Peer Pairing Assignments
-- Jason & Maria pairing at 15:30 to profile CoreAudio ring buffer memory consumption.`,
+    tableColumns: ['Owner', 'Task / PR', 'Due Sprint', 'Priority'],
+    promptInstructions: 'Extract engineering and agile sprint details. Summarize daily sprint velocity and PR statuses in Sprint Status. Detail architectural consensus (D-01, D-02). Tabulate sprint tasks with owners, PR tickets, and priority. Outline active blockers and list concrete 24-hour engineering goals.',
+    sampleDocument: {
+      meetingTitle: 'Sprint 44 Platform Core & Audio Engine Standup',
+      date: 'Nov 21, 2026',
+      duration: '15 mins',
+      location: 'Engineering Slack Huddle & Dev Lab',
+      preparedBy: 'Minomeet Engine Bot',
+      aiModel: 'Built-in Neural AI (Local)',
+      attendees: [
+        { name: 'Jason Miller', role: 'Audio DSP Engineer', attendance: 'Present' },
+        { name: 'Maria Santos', role: 'Rust Systems Lead', attendance: 'Present' },
+        { name: 'Kenji Sato', role: 'Frontend Architect', attendance: 'Present' }
+      ],
+      agenda: [
+        '1. Yesterday PR Merge Status & Benchmark Reviews',
+        '2. CoreAudio Ring Buffer Memory Profile',
+        '3. Active Blocker Resolution & Pairing Plan'
+      ],
+      sectionsData: {
+        'sprint-status': 'Platform engineering completed 94% of committed Sprint 44 story points. PR #412 optimizing CircularBuffer ring-buffer memory allocations was verified and merged into main without regression. Whisper.cpp Metal inference throughput benchmarked at 142 tokens/sec with batch size 1 on Apple Silicon hardware.',
+        'arch-decisions': [
+          'D-01: Enforced 16kHz mono internally across all audio pipelines before feeding Whisper/Parakeet native workers.',
+          'D-02: Adopted asynchronous batching for Tauri IPC transcript events to eliminate main thread UI micro-stutters.'
+        ],
+        'sprint-tasks': [
+          { Owner: 'Jason Miller', 'Task / PR': 'PR #419: Speech Metal kernel FP16 vectorization', 'Due Sprint': 'Sprint 44', Priority: 'P0 - Blocker' },
+          { Owner: 'Maria Santos', 'Task / PR': 'CORE-882: SQLite WAL mode concurrency stress test', 'Due Sprint': 'Sprint 44', Priority: 'P1 - High' },
+          { Owner: 'Kenji Sato', 'Task / PR': 'UI-104: Template preview modal document viewer component', 'Due Sprint': 'Sprint 44', Priority: 'P1 - High' }
+        ],
+        'tech-blockers': [
+          'PR #419 blocked awaiting macOS 15.2 SDK beta test harness; temporary workaround enabled via software fallback.',
+          'SQLite write-lock contention resolved by configuring 5000ms busy timeout.'
+        ],
+        'next-24h': [
+          'Jason and Maria pairing at 15:30 to profile CoreAudio ring buffer memory consumption.',
+          'Kenji to finalize template selection state synchronization in Settings screen.'
+        ]
+      },
+      nextMeeting: 'Tomorrow, Nov 22, 2026 at 09:30 AM',
+      distribution: 'Platform Core Engineering Team, QA Automation',
+      signoff: 'Maria Santos (Rust Systems Lead)'
+    },
+    isBuiltIn: true,
     isDefault: false,
     isSystem: true,
     createdAt: '2026-08-20T00:00:00.000Z',
     updatedAt: '2026-08-20T00:00:00.000Z'
   },
+
+  // 4. Client Discovery & Commercial
   {
-    id: 'template-sales',
-    name: 'Client & Sales Engagement',
-    category: 'Commercial & Sales',
-    description: 'Structured customer and commercial meeting report capturing client requirements, pain points, agreed scope, pricing terms, and customer follow-up actions.',
+    id: 'client-sales',
+    name: 'Client Discovery & Commercial',
+    category: 'Sales',
+    description: 'Commercial customer qualification capturing client opportunity, agreed scope, pricing terms, customer pain points, and commercial timelines.',
+    icon: 'briefcase',
+    accentColor: '#059669',
     sections: [
-      'Client Discovery & Opportunity Context',
-      'Agreed Deliverables & Scope',
-      'Commercial Terms & Pricing',
-      'Client & Account Action Items',
-      'Follow-up Timeline & Go-Live'
+      { id: 'client-opportunity', title: 'Client Opportunity Overview', type: 'text' },
+      { id: 'agreed-scope', title: 'Agreed Scope & Commercial Terms', type: 'bullets' },
+      { id: 'commercial-deliverables', title: 'Commercial Deliverables', type: 'table' },
+      { id: 'client-pain-points', title: 'Client Pain Points', type: 'bullets' },
+      { id: 'commercial-timeline', title: 'Commercial Follow-Up Timeline', type: 'bullets' }
     ],
-    tableColumns: ['Stakeholder', 'Commitment / Deliverable', 'Target Date', 'Account Stage'],
-    promptInstructions: 'Structure the summary for a sales or client engagement. Emphasize client needs and expectations, commercial or contractual agreements, agreed timeline milestones, and designated owners for deliverables.',
-    sampleDocument: `# Client & Sales Engagement
-**Client:** Acme Health Technologies  
-**Date:** November 21, 2026 | **Deal Size:** Enterprise ($120k ARR)  
-**Attendees:** Robert Sterling (Account Director), Lisa Zhang (Solutions Architect), Dr. Aris Thorne (Client VP)
-
----
-
-### Client Discovery & Opportunity Context
-Acme Health requires a strictly on-device, HIPAA-compliant speech-to-text meeting summarizer for medical executive discussions. Zero audio transmission off premises is mandatory.
-
-### Agreed Deliverables & Scope
-1. **On-Premise Deployment:** Delivery of Minomeet Desktop with local Neural AI models.
-2. **Security Verification:** Comprehensive SOC2 Type II and on-device data isolation audit.
-3. **Custom MOM Schema:** Specialization for clinical governance review meetings.
-
-### Commercial Terms & Pricing
-- **Licensing Model:** 250 Enterprise seats with annual prepaid billing.
-- **SLA Tier:** Mission-critical dedicated engineer support with 4-hour response SLA.
-
-### Client & Account Action Items
-| Stakeholder | Commitment / Deliverable | Target Date | Account Stage |
-| :--- | :--- | :--- | :--- |
-| **Lisa Zhang** | Deliver Architecture & Air-Gapped Security Whitepaper | Nov 24, 2026 | Technical Discovery |
-| **Dr. Thorne** | Finalize legal master services agreement (MSA) review | Dec 01, 2026 | Contract Review |
-| **Robert Sterling** | Send executable enterprise pilot agreement | Nov 23, 2026 | Proposal Delivery |
-
-### Follow-up Timeline & Go-Live
-- Technical security review call scheduled for Tuesday, November 25.
-- Target pilot commencement: December 08, 2026.`,
+    tableColumns: ['Owner', 'Deliverable', 'Due Date', 'Context'],
+    promptInstructions: 'Structure meeting minutes for commercial discovery and customer qualification. Summarize client background and deal parameters. Document agreed scope and pricing terms (D-01, D-02). Tabulate commercial deliverables. Enumerate client pain points and establish strict follow-up timelines.',
+    sampleDocument: {
+      meetingTitle: 'Acme Health Enterprise Discovery & Compliance Sync',
+      date: 'Nov 21, 2026',
+      duration: '35 mins',
+      location: 'Google Meet & Customer Executive Briefing Center',
+      preparedBy: 'Commercial AI Assistant',
+      aiModel: 'Built-in Neural AI (Local)',
+      attendees: [
+        { name: 'Robert Sterling', role: 'Enterprise Account Director', attendance: 'Present' },
+        { name: 'Lisa Zhang', role: 'Principal Solutions Architect', attendance: 'Present' },
+        { name: 'Dr. Aris Thorne', role: 'VP of Medical Informatics (Acme Health)', attendance: 'Present' }
+      ],
+      agenda: [
+        '1. Clinical Data Security & HIPAA On-Premises Mandate',
+        '2. 250-Seat Enterprise License Pricing & SLA Tiers',
+        '3. Pilot Rollout Timeline & Security Whitepaper Review'
+      ],
+      sectionsData: {
+        'client-opportunity': 'Acme Health Technologies requires a strictly on-device, HIPAA-compliant speech-to-text meeting summarizer for medical executive discussions. Cloud-based transcription services violate internal compliance guidelines; 100% air-gapped processing is a non-negotiable prerequisite.\n\nCommercial opportunity size estimated at 250 enterprise seats with annual recurring license commitment.',
+        'agreed-scope': [
+          'D-01: Approved 60-day enterprise pilot deployment across 3 clinical governance committees.',
+          'D-02: Agreed on annual enterprise licensing model at $120k ARR including dedicated support engineering.'
+        ],
+        'commercial-deliverables': [
+          { Owner: 'Lisa Zhang', Deliverable: 'Provide SOC2 Type II report and on-device architecture whitepaper', 'Due Date': 'Tuesday, Nov 25', Context: 'Information Security Committee sign-off' },
+          { Owner: 'Robert Sterling', Deliverable: 'Issue executable Master Services Agreement (MSA) and Pilot Order Form', 'Due Date': 'Wednesday, Nov 26', Context: 'Procurement legal review' },
+          { Owner: 'Dr. Thorne', Deliverable: 'Confirm pilot participant roster and macOS test hardware fleet', 'Due Date': 'Monday, Dec 01', Context: 'Pilot kickoff readiness' }
+        ],
+        'client-pain-points': [
+          'Existing cloud meeting recorders leak confidential patient identifier discussions.',
+          'Meeting summaries currently taken manually by senior physicians, consuming 4+ hours weekly.'
+        ],
+        'commercial-timeline': [
+          'Security audit call with Acme CISO confirmed for Dec 03, 2026.',
+          'Target pilot deployment go-live date set for Dec 15, 2026.'
+        ]
+      },
+      nextMeeting: 'Dec 03, 2026 at 11:00 AM EST',
+      distribution: 'Enterprise Sales, Solutions Architecture, Acme Procurement Team',
+      signoff: 'Robert Sterling (Enterprise Account Director)'
+    },
+    isBuiltIn: true,
     isDefault: false,
     isSystem: true,
     createdAt: '2026-08-20T00:00:00.000Z',
     updatedAt: '2026-08-20T00:00:00.000Z'
   },
+
+  // 5. Product & Design Review
   {
-    id: 'template-product-design',
+    id: 'product-design',
     name: 'Product & Design Review',
-    category: 'Product & Design',
-    description: 'User experience critique, product spec decisions, UI flow reviews, design system enhancements, and prototype iteration timelines.',
+    category: 'Product',
+    description: 'Product vision, UX flows, critique findings, wireframe/spec decisions, design action items, and next prototype milestones.',
+    icon: 'palette',
+    accentColor: '#ea580c',
     sections: [
-      'Product Vision & User Problem',
-      'Design Critiques & UX Feedback',
-      'Scope Trade-offs & Spec Decisions',
-      'Design System & Component Actions',
-      'Sprint Release Timeline'
+      { id: 'product-vision', title: 'Product Vision & UX Overview', type: 'text' },
+      { id: 'feature-scope', title: 'Feature Scope & Design Decisions', type: 'bullets' },
+      { id: 'design-action-items', title: 'Design Action Items', type: 'table' },
+      { id: 'usability-findings', title: 'Usability Findings', type: 'bullets' },
+      { id: 'next-milestones', title: 'Next Milestones', type: 'bullets' }
     ],
-    tableColumns: ['Designer / PM', 'UX Flow / Component', 'Revision Needed', 'Release Target'],
-    promptInstructions: 'Synthesize product and design review discussions. Capture user problems, specific UX feedback and critique notes, wireframe/spec decisions, design token/component updates, and target delivery sprints.',
-    sampleDocument: `# Product & Design Review
-**Feature Area:** Settings Redesign & Audio Device Calibration  
-**Date:** November 21, 2026 | **Design Stage:** High-Fidelity Prototype Review  
-**Attendees:** Chloe Martin (Lead Product Designer), Tyler Ross (Principal PM), Frank Wu (Frontend Lead)
-
----
-
-### Product Vision & User Problem
-Users require instant visual feedback on microphone calibration and speech engine readiness to eliminate recorded meeting failures caused by muted inputs or missing models.
-
-### Design Critiques & UX Feedback
-- **Input dB Meter:** The meter animation is smooth, but needs high-gain peak warning threshold (above -3dB) styled in amber/red.
-- **Equalizer Spectrum:** 16-band spectrum visualizer received universal praise; add subtle smoothing interpolation.
-- **Card Padding:** Standardized on 20px padding (rounded-2xl) across all settings tabs to ensure visual harmony.
-
-### Scope Trade-offs & Spec Decisions
-1. **Decision:** Move audio spectrum to pure HTML5 Web Audio API; avoid heavy third-party canvas libraries.
-2. **Decision:** Collapse advanced acoustic pre-processing filters into simple 3-card toggles.
-
-### Design System & Component Actions
-| Designer / PM | UX Flow / Component | Revision Needed | Release Target |
-| :--- | :--- | :--- | :--- |
-| **Chloe Martin** | Mic Calibration Card | Add dB scale tick marks (-30dB, -12dB, 0dB) | Sprint 45 |
-| **Frank Wu** | Audio Spectrum Bars | Implement CSS gradient color stops for peak bars | Sprint 45 |
-| **Tyler Ross** | Onboarding Wizard | Audit 4-step wizard against new card design tokens | Sprint 46 |
-
-### Sprint Release Timeline
-- Design tokens finalized: Wednesday.
-- Interactive prototypes handed off to frontend team: Friday at 17:00.`,
-    isDefault: false,
-    isSystem: true,
-    createdAt: '2026-08-20T00:00:00.000Z',
-    updatedAt: '2026-08-20T00:00:00.000Z'
-  },
-  {
-    id: 'template-retrospective',
-    name: 'Project Milestone & Retrospective',
-    category: 'Project Management',
-    description: 'Post-launch or sprint retrospective report capturing milestone health, successes/wins, process friction points, root-cause insights, and corrective actions.',
-    sections: [
-      'Milestone Health & Velocity',
-      'Successes & What Went Well',
-      'Friction Points & Root-Cause Challenges',
-      'Process Improvements & Corrective Actions',
-      'Next Sprint Deadlines'
-    ],
-    tableColumns: ['Process Area', 'Retrospective Finding', 'Action / Owner', 'Review Date'],
-    promptInstructions: 'Analyze the retrospective meeting. Categorize outcomes into project milestone status, positive achievements (wins), root-cause friction points, and specific process improvements or action items for the upcoming phase.',
-    sampleDocument: `# Project Milestone & Retrospective
-**Milestone:** v1.2 Release & Core Architecture Upgrade  
-**Date:** November 21, 2026 | **Facilitator:** Maya Lin (Scrum Master)  
-**Attendees:** Entire Platform & Product Engineering Team (12 participants)
-
----
-
-### Milestone Health & Velocity
-Sprint goal completed at 94% velocity. 38 user stories delivered, 2 non-critical technical debt items deferred to Sprint 45. Overall team morale rated 4.6 / 5.
-
-### Successes & What Went Well
-- **Zero Downtime Deployments:** Live transcript migration had zero downtime or data loss across all beta accounts.
-- **Inference Optimization:** On-device neural latency dropped by 42% on Apple Silicon hardware.
-- **Cross-Team Collaboration:** Daily 10-minute standups kept frontend and Rust core engineers closely synchronized.
-
-### Friction Points & Root-Cause Challenges
-- **CI Build Bottlenecks:** Rust cargo compilation times exceeded 12 minutes on GitHub Actions runners.
-- **Mock Service Complexity:** Discrepancies between browser mock audio contexts and native CoreAudio hardware.
-
-### Process Improvements & Corrective Actions
-| Process Area | Retrospective Finding | Action / Owner | Review Date |
-| :--- | :--- | :--- | :--- |
-| **CI / CD Pipeline** | Cargo cache misses caused long test runs | Enable sccache on CI runners (Alex) | Dec 01, 2026 |
-| **Testing Harness** | Mock audio device collides with system default | Refactor device identity unit tests (Frank) | Nov 28, 2026 |
-| **Design Review** | Design spec changes mid-sprint caused rework | Enforce strict Friday spec lock (Chloe) | Dec 05, 2026 |
-
-### Next Sprint Deadlines
-- Sprint 45 planning starts Monday at 09:30.
-- Production release freeze scheduled for December 12, 2026.`,
+    tableColumns: ['Owner', 'Prototype / Spec Task', 'Target Milestone', 'Design Notes'],
+    promptInstructions: 'Synthesize product design and UX review discussions. Summarize product vision and customer problem. Detail UX decisions and design system approvals (D-01, D-02). Tabulate design action items with assignees and target milestones. Capture usability critique findings and outline upcoming delivery sprints.',
+    sampleDocument: {
+      meetingTitle: 'Settings Redesign & Template Preview UX Review',
+      date: 'Nov 21, 2026',
+      duration: '40 mins',
+      location: 'Figma Jam & Design Studio 3',
+      preparedBy: 'Product Design AI',
+      aiModel: 'Built-in Neural AI (Local)',
+      attendees: [
+        { name: 'Chloe Martin', role: 'Staff Product Designer', attendance: 'Present' },
+        { name: 'Tyler Ross', role: 'Principal Product Manager', attendance: 'Present' },
+        { name: 'Frank Wu', role: 'Frontend Design Engineer', attendance: 'Present' }
+      ],
+      agenda: [
+        '1. Template Selection Hero Card & Preview Modal Critique',
+        '2. Micro-interactions: Knob Transitions & Hover Lift',
+        '3. Design Token Standardization Across Cards'
+      ],
+      sectionsData: {
+        'product-vision': 'The team conducted a comprehensive design audit of the Settings experience, centering on the Template Gallery and realistic MOM preview dialog. Users need immediate visual confidence that selecting a template directly shapes their exported meeting minutes document.\n\nAll components adhere strictly to the established light palette (blue #2563eb, light blue #eff6ff, border #e5e7eb) with 20px padding and rounded-2xl geometry.',
+        'feature-scope': [
+          'D-01: Approved the top \'Active Template\' hero card with miniature document thumbnail and instant Preview button.',
+          'D-02: Mandated centered A4 sheet preview with realistic drop shadow, clean typography, and dedicated print action.'
+        ],
+        'design-action-items': [
+          { Owner: 'Chloe Martin', 'Prototype / Spec Task': 'Deliver interactive Figma component variants for active template cards', 'Target Milestone': 'Sprint 45', 'Design Notes': 'Include keyboard focus-visible rings' },
+          { Owner: 'Frank Wu', 'Prototype / Spec Task': 'Implement hidden iframe print utility for instantaneous paper output', 'Target Milestone': 'Sprint 45', 'Design Notes': 'Zero UI flicker during print' },
+          { Owner: 'Tyler Ross', 'Prototype / Spec Task': 'Draft specification document for template section schema validation', 'Target Milestone': 'Sprint 45', 'Design Notes': 'Limit 1-10 sections, 80 char title' }
+        ],
+        'usability-findings': [
+          'Testers overwhelmingly preferred reading full realistic sample documents over generic filler text.',
+          'The green Active Default badge provided unmistakable confirmation of the currently applied template.'
+        ],
+        'next-milestones': [
+          'Engineering handoff scheduled for Wednesday at 16:00.',
+          'Usability testing session with 8 beta customers on Friday morning.'
+        ]
+      },
+      nextMeeting: 'Wednesday, Nov 25, 2026 at 04:00 PM',
+      distribution: 'Product Design, Product Management, Frontend Engineering',
+      signoff: 'Chloe Martin (Staff Product Designer)'
+    },
+    isBuiltIn: true,
     isDefault: false,
     isSystem: true,
     createdAt: '2026-08-20T00:00:00.000Z',
     updatedAt: '2026-08-20T00:00:00.000Z'
   }
 ];
+
+// Alias for backwards compatibility
+export const DEFAULT_MOM_TEMPLATES: MOMTemplate[] = [...BUILT_IN_TEMPLATES];
+
+/**
+ * Normalizes template sections into strongly typed objects: { id, title, type }
+ */
+export function normalizeSections(sections?: (MOMTemplateSection | string)[]): MOMTemplateSection[] {
+  if (!Array.isArray(sections)) return [];
+  return sections.map((sec, idx) => {
+    if (typeof sec === 'string') {
+      const title = sec.trim();
+      const lower = title.toLowerCase();
+      let type: 'text' | 'bullets' | 'table' = 'text';
+      let columns: string[] | undefined;
+      if (lower.includes('table') || lower.includes('matrix') || lower.includes('action') || lower.includes('task') || lower.includes('deliverable')) {
+        type = 'table';
+        columns = ['Owner', 'Task', 'Due Date', 'Status'];
+      } else if (lower.includes('decision') || lower.includes('highlight') || lower.includes('step') || lower.includes('bullet') || lower.includes('finding')) {
+        type = 'bullets';
+      }
+      const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `section-${idx + 1}`;
+      return { id: slug, title, name: title, type, columns };
+    }
+    const title = sec.title || (sec as any).name || `Section ${idx + 1}`;
+    const name = (sec as any).name || sec.title || title;
+    const id = sec.id || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `section-${idx + 1}`;
+    return {
+      ...sec,
+      id,
+      title,
+      name,
+      type: sec.type || 'text',
+      columns: (sec as any).columns || (sec.type === 'table' ? ['Owner', 'Task', 'Due Date', 'Status'] : undefined)
+    };
+  });
+}
+
+/**
+ * Checks whether an ID belongs to the canonical built-in templates
+ */
+export function isBuiltInTemplateId(id?: string): boolean {
+  if (!id) return false;
+  return BUILT_IN_TEMPLATE_IDS.includes(id as BuiltInTemplateId);
+}
+
+/**
+ * Deduplicates and migrates templates:
+ * 1. Canonical 5 built-ins always appear first in exact order.
+ * 2. Stale or duplicated legacy built-in copies are pruned.
+ * 3. Genuinely user-created custom templates are preserved.
+ */
+export function migrateTemplates(storedList: any[] = []): MOMTemplate[] {
+  const customTemplates: MOMTemplate[] = [];
+  const seenIds = new Set<string>(BUILT_IN_TEMPLATE_IDS);
+  const builtInNames = new Set<string>(BUILT_IN_TEMPLATES.map(b => b.name.toLowerCase()));
+
+  if (Array.isArray(storedList)) {
+    for (const item of storedList) {
+      if (!item || !item.id) continue;
+      const id = String(item.id);
+      const name = String(item.name || '').trim().toLowerCase();
+
+      // Skip old built-in IDs or matching names
+      if (isBuiltInTemplateId(id) || OLD_BUILT_IN_IDS.includes(id)) continue;
+      if (builtInNames.has(name) && (item.isBuiltIn || item.isSystem)) continue;
+
+      if (!seenIds.has(id)) {
+        seenIds.add(id);
+        customTemplates.push({
+          ...item,
+          isBuiltIn: false,
+          isSystem: false,
+          sections: normalizeSections(item.sections || [])
+        });
+      }
+    }
+  }
+
+  return [...BUILT_IN_TEMPLATES, ...customTemplates];
+}
+
+/**
+ * Resolves active template by ID or name, falling back to 'std-mom'
+ */
+export function resolveActiveTemplate(
+  templates: MOMTemplate[] = BUILT_IN_TEMPLATES,
+  targetId?: string,
+  fallbackName?: string
+): MOMTemplate {
+  if (targetId) {
+    const byId = templates.find(t => t.id === targetId || t.name.toLowerCase() === targetId.toLowerCase());
+    if (byId) return byId;
+  }
+
+  if (fallbackName) {
+    const lower = fallbackName.toLowerCase();
+    const byName = templates.find(
+      t => t.name.toLowerCase() === lower ||
+           t.id === lower ||
+           t.name.toLowerCase().includes(lower)
+    );
+    if (byName) return byName;
+
+    // Word-based match (e.g. "Executive Board" matches "Executive & Board Briefing")
+    const words = lower.split(/\W+/).filter(w => w.length > 2);
+    if (words.length > 0) {
+      const byWords = templates.find(t => {
+        const tLower = t.name.toLowerCase();
+        return words.every(w => tLower.includes(w));
+      });
+      if (byWords) return byWords;
+    }
+  }
+
+  return templates.find(t => t.id === 'std-mom') || templates[0] || BUILT_IN_TEMPLATES[0];
+}

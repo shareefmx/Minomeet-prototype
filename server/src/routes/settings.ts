@@ -1,6 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { storageService } from '../services/storageService.js';
-import { AUDIO_CAPTURE_MODES, AudioCaptureMode } from '../types/index.js';
+import {
+  AUDIO_CAPTURE_MODES,
+  AudioCaptureMode,
+  ALLOWED_TRANSCRIPTION_LANGUAGES,
+  ALLOWED_SUMMARY_LANGUAGES
+} from '../types/index.js';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
@@ -146,6 +151,76 @@ router.put('/', (req: Request, res: Response) => {
           success: false,
           error: `Invalid systemAudioBackend '${updates.systemAudioBackend}'. Expected 'screencapturekit' or 'coreaudio'`
         });
+      }
+    }
+
+    if (updates.autoSummaryOnConclude !== undefined) {
+      updates.autoSummaryOnConclude = Boolean(updates.autoSummaryOnConclude);
+      updates.autoSummary = updates.autoSummaryOnConclude;
+    } else if (updates.autoSummary !== undefined) {
+      updates.autoSummary = Boolean(updates.autoSummary);
+      updates.autoSummaryOnConclude = updates.autoSummary;
+    }
+
+    if (updates.summaryComponents !== undefined) {
+      const current = storageService.getSettings().summaryComponents || {
+        executiveSummary: true,
+        actionItems: true,
+        keyDecisions: true
+      };
+      const comp = {
+        executiveSummary: updates.summaryComponents.executiveSummary !== undefined
+          ? Boolean(updates.summaryComponents.executiveSummary)
+          : current.executiveSummary,
+        actionItems: updates.summaryComponents.actionItems !== undefined
+          ? Boolean(updates.summaryComponents.actionItems)
+          : current.actionItems,
+        keyDecisions: updates.summaryComponents.keyDecisions !== undefined
+          ? Boolean(updates.summaryComponents.keyDecisions)
+          : current.keyDecisions
+      };
+      if (!comp.executiveSummary && !comp.actionItems && !comp.keyDecisions) {
+        return res.status(400).json({
+          success: false,
+          error: 'At least one summary component must be enabled.'
+        });
+      }
+      updates.summaryComponents = comp;
+    }
+
+    if (updates.transcriptionLanguage !== undefined) {
+      const lang = String(updates.transcriptionLanguage).trim().toLowerCase();
+      if (!ALLOWED_TRANSCRIPTION_LANGUAGES.includes(lang)) {
+        return res.status(400).json({
+          success: false,
+          error: `Invalid transcriptionLanguage '${updates.transcriptionLanguage}'. Allowed: ${ALLOWED_TRANSCRIPTION_LANGUAGES.join(', ')}`
+        });
+      }
+      updates.transcriptionLanguage = lang;
+    }
+
+    if (updates.summaryLanguage !== undefined) {
+      const lang = String(updates.summaryLanguage).trim().toLowerCase();
+      if (!ALLOWED_SUMMARY_LANGUAGES.includes(lang)) {
+        return res.status(400).json({
+          success: false,
+          error: `Invalid summaryLanguage '${updates.summaryLanguage}'. Allowed: ${ALLOWED_SUMMARY_LANGUAGES.join(', ')}`
+        });
+      }
+      updates.summaryLanguage = lang;
+    }
+
+    if (updates.defaultTemplateId !== undefined || updates.defaultTemplate !== undefined) {
+      const tmplIdOrName = String(updates.defaultTemplateId || updates.defaultTemplate || '').trim();
+      if (tmplIdOrName) {
+        const template = storageService.getTemplateById(tmplIdOrName);
+        if (template) {
+          updates.defaultTemplateId = template.id;
+          updates.defaultTemplate = template.name;
+        } else {
+          updates.defaultTemplateId = 'std-mom';
+          updates.defaultTemplate = 'Standard Meeting Notes & MOM';
+        }
       }
     }
 

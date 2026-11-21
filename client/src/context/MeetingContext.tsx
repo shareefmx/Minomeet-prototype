@@ -513,7 +513,7 @@ export const MeetingProvider: React.FC<{ children: ReactNode }> = ({ children })
         }
       }
 
-      const shouldAutoSummarize = settings?.autoSummary ?? true;
+      const shouldAutoSummarize = settings?.autoSummaryOnConclude ?? settings?.autoSummary ?? true;
 
       const newMeeting = await api.createMeeting({
         title: `Meeting ${new Date().toISOString().slice(0, 10)}_${m}-${s}`,
@@ -524,6 +524,13 @@ export const MeetingProvider: React.FC<{ children: ReactNode }> = ({ children })
         template: settings?.defaultTemplate,
         language: settings?.defaultLanguage
       });
+
+      if (!shouldAutoSummarize) {
+        newMeeting.summaryStatus = 'not_generated';
+        try {
+          await api.updateMeeting(newMeeting.id, { summaryStatus: 'not_generated' });
+        } catch (e) {}
+      }
 
       setMeetings(prev => [newMeeting, ...prev]);
       setActiveMeeting(newMeeting);
@@ -545,7 +552,7 @@ export const MeetingProvider: React.FC<{ children: ReactNode }> = ({ children })
             agentId: 'mom_synthesis'
           });
 
-          const updated = await api.updateMeeting(newMeeting.id, { summary });
+          const updated = await api.updateMeeting(newMeeting.id, { summary, summaryStatus: 'completed' });
           setActiveMeeting(updated);
           setMeetings(prev => prev.map(m => m.id === updated.id ? updated : m));
           showToast('Summary generated successfully!', 'Your meeting minutes are ready.', 'success');
@@ -577,7 +584,7 @@ export const MeetingProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const generateSummaryForActive = async (template?: string, language?: string) => {
-    if (!activeMeeting) return;
+    if (!activeMeeting || isGeneratingSummary) return;
     setIsGeneratingSummary(true);
 
     try {
@@ -589,7 +596,7 @@ export const MeetingProvider: React.FC<{ children: ReactNode }> = ({ children })
         agentId: 'mom_synthesis'
       });
 
-      const updated = await api.updateMeeting(activeMeeting.id, { summary });
+      const updated = await api.updateMeeting(activeMeeting.id, { summary, summaryStatus: 'completed' });
       setActiveMeeting(updated);
       setMeetings(prev => prev.map(m => m.id === updated.id ? updated : m));
       showToast('Summary generated successfully!', 'Your meeting minutes are ready.', 'success');
@@ -805,7 +812,7 @@ export const MeetingProvider: React.FC<{ children: ReactNode }> = ({ children })
       const updated = await api.setDefaultTemplate(id);
       setTemplates(prev => prev.map(t => ({ ...t, isDefault: t.id === id })));
       if (settings) {
-        setSettings({ ...settings, defaultTemplate: updated.name });
+        setSettings({ ...settings, defaultTemplateId: updated.id, defaultTemplate: updated.name });
       }
       showToast('Default Template Set', updated.name, 'success');
     } catch (err: any) {

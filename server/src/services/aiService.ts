@@ -8,6 +8,7 @@ import {
   AI_PROVIDERS_CONFIG,
   isNonChatOrTranscriptionModel
 } from '../utils/aiModelConfig.js';
+import { BUILT_IN_TEMPLATES, normalizeSections } from '../utils/momTemplates.js';
 
 /**
  * Strips internal thinking tokens (<think>...</think>) from reasoning models (e.g., DeepSeek-R1, QwQ).
@@ -449,56 +450,163 @@ export class AIService {
 
     const title = meetingTitle || (transcript.length > 0 ? `Meeting Sync — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : 'Untitled Meeting');
     const dateFormatted = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const templateDef = storageService.getTemplateById(template);
+    
+    // Resolve template: override > defaultTemplateId > defaultTemplate > std-mom
+    const targetTemplateId = template || settings.defaultTemplateId || settings.defaultTemplate || 'std-mom';
+    const templateDef = storageService.getTemplateById(targetTemplateId)
+      || storageService.getTemplateById('std-mom')
+      || BUILT_IN_TEMPLATES[0];
+
+    const templateSections = normalizeSections(templateDef.sections);
+    const tableColumns = templateDef.tableColumns && templateDef.tableColumns.length > 0
+      ? templateDef.tableColumns
+      : ['Owner', 'Task', 'Due Date', 'Status'];
+
+    const components = settings.summaryComponents || {
+      executiveSummary: true,
+      actionItems: true,
+      keyDecisions: true
+    };
+
+    let targetLangCode = settings.summaryLanguage && settings.summaryLanguage !== 'same'
+      ? settings.summaryLanguage
+      : (settings.transcriptionLanguage && settings.transcriptionLanguage !== 'auto' ? settings.transcriptionLanguage : 'en');
+    if (language && language !== 'English' && language !== 'auto' && (!settings.summaryLanguage || settings.summaryLanguage === 'same')) {
+      targetLangCode = language;
+    }
+
+    const langNameMap: Record<string, string> = {
+      en: 'English',
+      auto: 'English',
+      es: 'Spanish',
+      fr: 'French',
+      de: 'German',
+      pt: 'Portuguese',
+      it: 'Italian',
+      hi: 'Hindi',
+      ta: 'Tamil',
+      te: 'Telugu',
+      ml: 'Malayalam',
+      kn: 'Kannada',
+      ja: 'Japanese',
+      ko: 'Korean',
+      zh: 'Chinese',
+      ar: 'Arabic'
+    };
+    const targetLangName = langNameMap[targetLangCode.toLowerCase()] || targetLangCode;
+    const isTargetNonEnglish = targetLangCode.toLowerCase() !== 'en' && targetLangCode.toLowerCase() !== 'english';
+    const langInstruction = isTargetNonEnglish
+      ? ` Write the entire output in ${targetLangName}. Do not translate names or numbers.`
+      : '';
 
     // Call configured AI provider
     if (fullText.trim().length > 0) {
       try {
-        const sysPrompt = `You are an expert executive meeting assistant. You synthesize meeting transcripts into structured Minutes of Meeting (MOM) in ${language}.
-Template style to adhere to: "${template}".
+        const sectionsSchemaExample: Record<string, any> = {};
+        for (const sec of templateSections) {
+          const secId = sec.id || sec.title?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'section';
+          const secTitle = sec.title || sec.name || 'Section';
+          if (sec.type === 'text') {
+            sectionsSchemaExample[secId] = `Paragraph synthesis for ${secTitle}`;
+          } else if (sec.type === 'bullets') {
+            sectionsSchemaExample[secId] = [`Bullet point 1 for ${secTitle}`, `Bullet point 2 for ${secTitle}`];
+          } else if (sec.type === 'table') {
+            const rowSample: Record<string, string> = {};
+            for (const col of tableColumns) {
+              rowSample[col] = `Sample ${col}`;
+            }
+            sectionsSchemaExample[secId] = [rowSample];
+          }
+        }
+
+        const sysPrompt = `You are an expert executive meeting assistant. You synthesize meeting transcripts into structured Minutes of Meeting (MOM).
+Template to adhere to: "${templateDef.name}" (${templateDef.category})
+Template Instructions: ${templateDef.promptInstructions}
+${langInstruction}
+Required Sections:
+${templateSections.map(s => `- ${s.title} (id: "${s.id}", type: ${s.type})`).join('\n')}
+Table Columns: ${tableColumns.join(', ')}
+
 Respond with a JSON object strictly matching this schema:
 {
-  "summary": "Concise executive summary of the meeting",
+  "summary": "Concise executive overview",
   "keyDecisions": ["Decision 1", "Decision 2"],
-  "actionItems": [{"task": "Task description", "owner": "Assignee name", "due": "Target date", "notes": "Tracking note"}],
+  "actionItems": [{"owner": "Assignee name", "task": "Task description", "due": "Target date", "notes": "Tracking notes"}],
   "discussionHighlights": ["Highlight 1", "Highlight 2"],
-  "nextSteps": ["Next step 1", "Next step 2"]
+  "nextSteps": ["Next step 1", "Next step 2"],
+  "sectionsData": ${JSON.stringify(sectionsSchemaExample, null, 2)}
 }`;
         const userPrompt = `Meeting Title: ${title}\nAttendees: ${attendeesList.join(', ')}\n${customPrompt ? `Custom Instructions: ${customPrompt}\n` : ''}\nTranscript:\n${fullText}`;
 
         const llmResponse = await this.callLLM(resolved.providerId, resolved.apiKey, resolved.baseUrl, effectiveModel, sysPrompt, userPrompt);
         
-        const fallbackMOMExtractor = (text: string): any => {
-          const cleanText = text.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
-          return {
-            summary: cleanText || 'Summary generated by AI.',
-            keyDecisions: ['Key decisions discussed and agreed.'],
-            actionItems: [],
-            discussionHighlights: ['Key meeting points reviewed.'],
-            nextSteps: ['Follow up on discussed action items.']
-          };
-        };
+        let parsed: any;
+        const clean = cleanModelOutput(llmResponse).replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
+        try {
+          parsed = JSON.parse(clean);
+        } catch {
+          // Robust parsing: strip unescaped ASCII control characters on failure
+          const sanitized = clean.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
+          try {
+            parsed = JSON.parse(sanitized);
+          } catch {
+            parsed = {
+              summary: clean.slice(0, 300) || 'Summary generated by AI.',
+              keyDecisions: ['Key decisions discussed and ratified.'],
+              actionItems: [],
+              discussionHighlights: ['Key meeting discussions reviewed.'],
+              nextSteps: ['Follow up on deliverables.'],
+              sectionsData: {}
+            };
+          }
+        }
 
-        const parsed = parseAIJsonResponse<any>(llmResponse, fallbackMOMExtractor);
+        const rawSectionsData = (parsed && typeof parsed.sectionsData === 'object' && parsed.sectionsData)
+          ? parsed.sectionsData
+          : {};
+
+        const resolvedSectionsData: Record<string, any> = {};
+        for (const sec of templateSections) {
+          const secId = sec.id || sec.title?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'section';
+          const secTitle = sec.title || sec.name || 'Section';
+          if (rawSectionsData[secId] !== undefined) {
+            resolvedSectionsData[secId] = rawSectionsData[secId];
+          } else {
+            // Map fallback from top-level fields
+            if (sec.type === 'text') {
+              resolvedSectionsData[secId] = parsed.summary || parsed[secId] || `Synthesis for ${secTitle}.`;
+            } else if (sec.type === 'bullets') {
+              resolvedSectionsData[secId] = (secId.includes('decision') || secTitle.toLowerCase().includes('decision'))
+                ? (Array.isArray(parsed.keyDecisions) && parsed.keyDecisions.length > 0 ? parsed.keyDecisions : [`Agreed on ${secTitle} points.`])
+                : (Array.isArray(parsed.discussionHighlights) && parsed.discussionHighlights.length > 0 ? parsed.discussionHighlights : [`Discussion for ${secTitle}.`]);
+            } else if (sec.type === 'table') {
+              resolvedSectionsData[secId] = Array.isArray(parsed.actionItems) && parsed.actionItems.length > 0
+                ? parsed.actionItems
+                : [{ [tableColumns[0] || 'Owner']: 'Team Lead', [tableColumns[1] || 'Task']: 'Execute deliverables', [tableColumns[2] || 'Due']: 'Upcoming', [tableColumns[3] || 'Status']: 'Pending' }];
+            }
+          }
+        }
 
         return {
           title,
           date: dateFormatted,
           attendees: attendeesList,
-          summary: parsed.summary || 'Summary generated by AI.',
-          keyDecisions: Array.isArray(parsed.keyDecisions) ? parsed.keyDecisions : ['Key decisions recorded.'],
-          actionItems: (Array.isArray(parsed.actionItems) ? parsed.actionItems : []).map((a: any) => ({
+          summary: components.executiveSummary ? (parsed.summary || 'Summary generated by AI.') : '',
+          keyDecisions: components.keyDecisions ? (Array.isArray(parsed.keyDecisions) ? parsed.keyDecisions : ['Key decisions recorded.']) : [],
+          actionItems: components.actionItems ? (Array.isArray(parsed.actionItems) ? parsed.actionItems : []).map((a: any) => ({
             id: uuidv4(),
-            owner: typeof a === 'string' ? 'Team Member' : (a?.owner || 'Team Member'),
-            task: typeof a === 'string' ? a : (a?.task || 'Follow up'),
-            due: typeof a === 'object' ? (a?.due || 'Upcoming') : 'Upcoming',
-            notes: typeof a === 'object' ? (a?.notes || '') : '',
+            owner: typeof a === 'string' ? 'Team Member' : (a?.owner || a?.[tableColumns[0]] || 'Team Member'),
+            task: typeof a === 'string' ? a : (a?.task || a?.[tableColumns[1]] || 'Follow up'),
+            due: typeof a === 'object' ? (a?.due || a?.[tableColumns[2]] || 'Upcoming') : 'Upcoming',
+            notes: typeof a === 'object' ? (a?.notes || a?.[tableColumns[3]] || '') : '',
             completed: false
-          })),
+          })) : [],
           discussionHighlights: Array.isArray(parsed.discussionHighlights) ? parsed.discussionHighlights : ['Discussed agenda items.'],
           nextSteps: Array.isArray(parsed.nextSteps) ? parsed.nextSteps : ['Follow up on assigned items.'],
-          template: templateDef ? templateDef.name : template,
-          language,
+          template: templateDef.name,
+          templateId: templateDef.id,
+          sectionsData: resolvedSectionsData,
+          language: targetLangName,
           modelUsed: `${resolved.providerName} • ${effectiveModel}`,
           generatedAt: new Date().toISOString()
         };
@@ -508,33 +616,52 @@ Respond with a JSON object strictly matching this schema:
     }
 
     // Heuristic Local Synthesis Fallback
-    const actionItems: ActionItem[] = this.extractActionItems(transcript, speakers);
-    const keyDecisions: string[] = this.extractKeyDecisions(transcript, template);
+    const actionItems: ActionItem[] = components.actionItems ? this.extractActionItems(transcript, speakers) : [];
+    const keyDecisions: string[] = components.keyDecisions ? this.extractKeyDecisions(transcript, templateDef.name) : [];
     const discussionHighlights: string[] = this.extractHighlights(transcript);
     const nextSteps: string[] = this.extractNextSteps(actionItems);
+
+    const fallbackSectionsData: Record<string, any> = {};
+    for (const sec of templateSections) {
+      const secId = sec.id || sec.title?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'section';
+      const secTitle = sec.title || sec.name || 'Section';
+      if (sec.type === 'text') {
+        fallbackSectionsData[secId] = components.executiveSummary ? `Executive Summary for ${templateDef.name} generated via local heuristics.` : '';
+      } else if (sec.type === 'bullets') {
+        fallbackSectionsData[secId] = secTitle.toLowerCase().includes('decision')
+          ? (keyDecisions.length > 0 ? keyDecisions : [`Decisions finalized under ${secTitle}.`])
+          : (discussionHighlights.length > 0 ? discussionHighlights : [`Key discussion reviewed under ${secTitle}.`]);
+      } else if (sec.type === 'table') {
+        fallbackSectionsData[secId] = actionItems.length > 0 ? actionItems : [
+          { [tableColumns[0] || 'Owner']: speakers[0] || 'Team Lead', [tableColumns[1] || 'Task']: 'Execute deliverables', [tableColumns[2] || 'Due']: 'Next sprint', [tableColumns[3] || 'Status']: 'Pending' }
+        ];
+      }
+    }
 
     return {
       title,
       date: dateFormatted,
       attendees: attendeesList,
-      summary: 'Executive Summary generated via local heuristics.',
-      keyDecisions: keyDecisions.length > 0 ? keyDecisions : ['Approved current project roadmap milestones.'],
-      actionItems: actionItems.length > 0 ? actionItems : [
+      summary: components.executiveSummary ? 'Executive Summary generated via local heuristics.' : '',
+      keyDecisions: components.keyDecisions ? (keyDecisions.length > 0 ? keyDecisions : ['Approved current project roadmap milestones.']) : [],
+      actionItems: components.actionItems ? (actionItems.length > 0 ? actionItems : [
         {
           id: uuidv4(),
           owner: speakers[0] || 'Team Member',
-          task: 'Follow up on discussion items from this meeting',
-          due: 'By next sync',
-          notes: 'Review shared minutes',
+          task: 'Execute deliverables discussed during session',
+          due: 'Next sprint',
+          notes: 'Deliverable extracted from transcript',
           completed: false
         }
-      ],
+      ]) : [],
       discussionHighlights: discussionHighlights.length > 0 ? discussionHighlights : [
         'Reviewed overall architecture and timelines.',
         'Confirmed team availability and key dependencies.'
       ],
       nextSteps: nextSteps,
-      template: templateDef ? templateDef.name : template,
+      template: templateDef.name,
+      templateId: templateDef.id,
+      sectionsData: fallbackSectionsData,
       language,
       modelUsed: `${resolved.providerName} • ${effectiveModel}`,
       generatedAt: new Date().toISOString()

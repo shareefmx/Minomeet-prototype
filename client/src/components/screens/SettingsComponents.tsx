@@ -71,13 +71,13 @@ export const Toggle: React.FC<ToggleProps> = ({
     aria-label={ariaLabel || label || 'Toggle switch'}
     disabled={disabled}
     onClick={() => !disabled && onChange(!checked)}
-    className={`relative inline-flex h-5.5 w-10 shrink-0 cursor-pointer rounded-full transition-colors duration-150 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]/40 disabled:opacity-50 disabled:cursor-not-allowed ${
+    className={`relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer rounded-full transition-colors duration-150 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]/40 disabled:opacity-50 disabled:cursor-not-allowed ${
       checked ? 'bg-[#2563eb]' : 'bg-[#d1d5db]'
     }`}
   >
     <span
       className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-150 ease-in-out mt-[3px] ml-[3px] ${
-        checked ? 'translate-x-4.5' : 'translate-x-0'
+        checked ? 'translate-x-[18px]' : 'translate-x-0'
       }`}
     />
   </button>

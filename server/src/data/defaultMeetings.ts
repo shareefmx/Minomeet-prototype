@@ -17,6 +17,14 @@ export const defaultSettings: AppSettings = {
   liveCaptions: true,
   speakerLabels: true,
   autoSummary: true,
+  autoSummaryOnConclude: true,
+  summaryComponents: {
+    executiveSummary: true,
+    actionItems: true,
+    keyDecisions: true
+  },
+  transcriptionLanguage: 'en',
+  summaryLanguage: 'same',
   defaultLanguage: 'English',
   defaultTemplate: 'Standard Meeting Notes & MOM',
   selectedModel: 'gemini-2.5-flash',
