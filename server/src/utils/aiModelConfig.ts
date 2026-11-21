@@ -50,7 +50,10 @@ export const AI_PROVIDERS_CONFIG: AIProviderConfig[] = [
     description: '100% private, on-device AI running quantized GGUF neural models directly on your hardware. Zero cloud latency or telemetry.',
     requiresKey: false,
     models: [
-      { id: 'qwen3.5:4b', name: 'Qwen 3.5 4B (High Quality)', tag: 'Recommended (On-Device)', contextWindow: '32k' }
+      { id: 'qwen3.5:4b', name: 'Qwen 3.5 4B (High Quality)', tag: 'Recommended (On-Device)', contextWindow: '32k' },
+      { id: 'qwen3.5:2b', name: 'Qwen 3.5 2B (Balanced)', tag: 'Fast (On-Device)', contextWindow: '32k' },
+      { id: 'gemma3:4b', name: 'Gemma 3 4B (Balanced)', tag: 'On-Device', contextWindow: '32k' },
+      { id: 'gemma3:1b', name: 'Gemma 3 1B (Fast)', tag: 'Lightweight', contextWindow: '32k' }
     ]
   },
   {
@@ -62,7 +65,12 @@ export const AI_PROVIDERS_CONFIG: AIProviderConfig[] = [
     requiresKey: false,
     supportsCustomEndpoint: true,
     supportsFetchModels: true,
-    models: []
+    models: [
+      { id: 'qwen3.5:4b', name: 'Qwen 3.5 4B', tag: 'Local Qwen', contextWindow: '32k' },
+      { id: 'llama3.2:3b', name: 'Llama 3.2 3B', tag: 'Meta Local', contextWindow: '128k' },
+      { id: 'mistral:7b', name: 'Mistral 7B', tag: 'European AI', contextWindow: '32k' },
+      { id: 'deepseek-r1:8b', name: 'DeepSeek R1 8B', tag: 'Local Reasoning', contextWindow: '64k' }
+    ]
   },
   {
     id: 'openai',
@@ -72,7 +80,13 @@ export const AI_PROVIDERS_CONFIG: AIProviderConfig[] = [
     keyPlaceholder: 'sk-proj-...',
     requiresKey: true,
     supportsFetchModels: true,
-    models: []
+    models: [
+      { id: 'gpt-4o', name: 'GPT-4o (Omni)', tag: 'Recommended', contextWindow: '128k' },
+      { id: 'gpt-4o-mini', name: 'GPT-4o Mini', tag: 'Fast & Cost-Efficient', contextWindow: '128k' },
+      { id: 'o1', name: 'o1 Reasoning', tag: 'Deep Thinking', contextWindow: '200k' },
+      { id: 'o3-mini', name: 'o3-mini', tag: 'Fast Reasoning', contextWindow: '200k' },
+      { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', tag: 'Production', contextWindow: '128k' }
+    ]
   },
   {
     id: 'anthropic',
@@ -82,7 +96,12 @@ export const AI_PROVIDERS_CONFIG: AIProviderConfig[] = [
     keyPlaceholder: 'sk-ant-...',
     requiresKey: true,
     supportsFetchModels: true,
-    models: []
+    models: [
+      { id: 'claude-3-7-sonnet-latest', name: 'Claude 3.7 Sonnet', tag: 'Hybrid Thinking', contextWindow: '200k' },
+      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', tag: 'Recommended', contextWindow: '200k' },
+      { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', tag: 'Fast Synthesis', contextWindow: '200k' },
+      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', tag: 'Complex Nuance', contextWindow: '200k' }
+    ]
   },
   {
     id: 'google',
@@ -92,7 +111,13 @@ export const AI_PROVIDERS_CONFIG: AIProviderConfig[] = [
     keyPlaceholder: 'AIzaSy...',
     requiresKey: true,
     supportsFetchModels: true,
-    models: []
+    models: [
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', tag: 'Recommended', contextWindow: '1M' },
+      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', tag: 'Deep Analysis', contextWindow: '2M' },
+      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', tag: 'Fast Multimodal', contextWindow: '1M' },
+      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', tag: '2M Context', contextWindow: '2M' },
+      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', tag: 'High Speed', contextWindow: '1M' }
+    ]
   },
   {
     id: 'groq',
@@ -102,7 +127,12 @@ export const AI_PROVIDERS_CONFIG: AIProviderConfig[] = [
     keyPlaceholder: 'gsk_...',
     requiresKey: true,
     supportsFetchModels: true,
-    models: []
+    models: [
+      { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile', tag: 'Recommended', contextWindow: '128k' },
+      { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant', tag: 'Sub-Second', contextWindow: '128k' },
+      { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B 32k', tag: 'MoE Inference', contextWindow: '32k' },
+      { id: 'deepseek-r1-distill-llama-70b', name: 'DeepSeek R1 Distill 70B', tag: 'Fast Reasoning', contextWindow: '128k' }
+    ]
   },
   {
     id: 'openrouter',
@@ -112,7 +142,12 @@ export const AI_PROVIDERS_CONFIG: AIProviderConfig[] = [
     keyPlaceholder: 'sk-or-v1-...',
     requiresKey: true,
     supportsFetchModels: true,
-    models: []
+    models: [
+      { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Meta Llama 3.3 70B Instruct', tag: 'Recommended', contextWindow: '128k' },
+      { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', tag: 'Top Quality', contextWindow: '200k' },
+      { id: 'openai/gpt-4o', name: 'OpenAI GPT-4o', tag: 'Omni Reasoning', contextWindow: '128k' },
+      { id: 'deepseek/deepseek-r1', name: 'DeepSeek R1', tag: 'Full Reasoning', contextWindow: '128k' }
+    ]
   },
   {
     id: 'custom',
@@ -124,7 +159,9 @@ export const AI_PROVIDERS_CONFIG: AIProviderConfig[] = [
     requiresKey: false,
     supportsCustomEndpoint: true,
     supportsFetchModels: true,
-    models: []
+    models: [
+      { id: 'custom-model', name: 'Custom Model (Auto-detect)', tag: 'Server Model', contextWindow: 'Configurable' }
+    ]
   }
 ];
 
@@ -202,23 +239,52 @@ export function getAvailableModelsForProvider(
 ): AIModelOption[] {
   const provDef = AI_PROVIDERS_CONFIG.find(p => p.id === providerId);
   const baseModels = provDef ? [...provDef.models] : [];
-  const fetched = settings?.aiProviders?.[providerId]?.fetchedModels || [];
+  const cred = settings?.aiProviders?.[providerId];
+  const apiKey = (cred?.apiKey || '').trim();
+  const fetched = cred?.fetchedModels || [];
 
-  const existingIds = new Set(baseModels.map(m => m.id));
-  const dynamicOptions: AIModelOption[] = [];
-
-  for (const mId of fetched) {
-    if (!existingIds.has(mId) && !isNonChatOrTranscriptionModel(mId)) {
-      dynamicOptions.push({
-        id: mId,
-        name: mId,
-        tag: providerId === 'custom' ? 'Server Model' : 'Live Available'
-      });
-      existingIds.add(mId);
-    }
+  // For built-in AI (local weights), always return baseModels
+  if (providerId === 'builtin-ai' || providerId === 'builtin') {
+    return baseModels;
   }
 
-  return [...baseModels, ...dynamicOptions];
+  // Providers requiring an API key: if NO API key is inserted, show NO models
+  if (provDef?.requiresKey && !apiKey) {
+    return [];
+  }
+
+  // After fetching LLM models, ONLY show the models present in the fetched API list
+  if (fetched && fetched.length > 0) {
+    const baseModelMap = new Map<string, AIModelOption>();
+    for (const m of baseModels) {
+      baseModelMap.set(m.id.toLowerCase(), m);
+    }
+
+    const result: AIModelOption[] = [];
+    const seen = new Set<string>();
+
+    for (const mId of fetched) {
+      if (isNonChatOrTranscriptionModel(mId)) continue;
+      const key = mId.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const known = baseModelMap.get(key);
+      if (known) {
+        result.push(known);
+      } else {
+        result.push({
+          id: mId,
+          name: mId,
+          tag: providerId === 'custom' ? 'Server Model' : 'Live Available'
+        });
+      }
+    }
+
+    return result.length > 0 ? result : baseModels;
+  }
+
+  return baseModels;
 }
 
 export function resolveModel(settings: AppSettings | null | undefined, agentId: string): ResolvedAIModel {
@@ -238,9 +304,9 @@ export function resolveModel(settings: AppSettings | null | undefined, agentId: 
   let error: string | undefined = undefined;
 
   if (globalProviderId === 'builtin-ai') {
-    status = 'connected';
-    isUsable = true;
-    error = undefined;
+    status = globalCred?.status || 'connected';
+    isUsable = status !== 'invalid' && status !== 'error' && status !== ('download_required' as any);
+    error = globalCred?.statusMessage;
   } else if (globalProviderId === 'ollama') {
     const fetched = globalCred?.fetchedModels || [];
     if (status !== 'connected' && fetched.length === 0) {
