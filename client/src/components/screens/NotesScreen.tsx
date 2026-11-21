@@ -158,6 +158,7 @@ export const NotesScreen: React.FC = () => {
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [optionsMenuOpen, setOptionsMenuOpen] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [summaryProgress, setSummaryProgress] = useState<number>(0);
@@ -666,22 +667,41 @@ export const NotesScreen: React.FC = () => {
                       <Download className="w-3.5 h-3.5 text-[#2563eb]" />
                       <span>Download Word Document (.doc)</span>
                     </div>
-                    <div
+                    <button
+                      type="button"
+                      disabled={isExportingPDF}
                       onClick={async () => {
-                        setExportMenuOpen(false);
+                        if (isExportingPDF) return;
+                        setIsExportingPDF(true);
                         try {
-                          const savedPath = await exportService.exportToPDF(activeMeeting);
-                          showToast('MOM PDF Report Ready', `Saved to ${savedPath}. Print dialog opened.`, 'success');
+                          const result = await exportService.exportToPDF(activeMeeting);
+                          const savedPath = typeof result === 'string' ? result : result.savedPath;
+                          setExportMenuOpen(false);
+                          showToast('MOM PDF Report Ready', `Saved vector PDF to ${savedPath}`, 'success');
                           sendDesktopNotification('MOM Report Downloaded', `Saved PDF report to ${savedPath}`);
+                          if (result && typeof result === 'object' && result.hasUnsupportedUnicode) {
+                            showToast(
+                              'Font Compatibility Note',
+                              `Document contains ${result.detectedScripts.join(', ')} text. Standard PDF viewer font may substitute glyphs.`,
+                              'info'
+                            );
+                          }
                         } catch (err: any) {
+                          console.error('[Export] Failed to export PDF:', err);
                           showToast('Export Error', err?.message || 'Failed to export PDF', 'error');
+                        } finally {
+                          setIsExportingPDF(false);
                         }
                       }}
-                      className="flex items-center gap-2.5 px-3.5 py-2 cursor-pointer hover:bg-[#f8fafc] text-[#374151] font-medium"
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2 cursor-pointer hover:bg-[#f8fafc] text-[#374151] font-medium text-left disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <Printer className="w-3.5 h-3.5 text-[#15803d]" />
-                      <span>Print / Save as PDF</span>
-                    </div>
+                      {isExportingPDF ? (
+                        <Loader2 className="w-3.5 h-3.5 text-[#2563eb] animate-spin flex-none" />
+                      ) : (
+                        <Download className="w-3.5 h-3.5 text-[#e2564c] flex-none" />
+                      )}
+                      <span>{isExportingPDF ? 'Generating Vector PDF…' : 'Export Full PDF (.pdf)'}</span>
+                    </button>
                     <div
                       onClick={async () => {
                         setExportMenuOpen(false);
@@ -695,15 +715,31 @@ export const NotesScreen: React.FC = () => {
                       }}
                       className="flex items-center gap-2.5 px-3.5 py-2 cursor-pointer hover:bg-[#f8fafc] text-[#374151] font-medium"
                     >
-                      <Download className="w-3.5 h-3.5 text-[#e2564c]" />
+                      <Download className="w-3.5 h-3.5 text-[#0284c7]" />
                       <span>Download Markdown (.md)</span>
+                    </div>
+                    <div
+                      onClick={() => {
+                        setExportMenuOpen(false);
+                        try {
+                          exportService.printMeeting(activeMeeting);
+                          showToast('Print Dialog Opened', 'Select your printer or choose Save as PDF', 'info');
+                        } catch (err: any) {
+                          console.warn('[Print] Print failed or unsupported:', err);
+                          showToast('Print Unavailable', 'Printing is not available here. Use Export Full PDF.', 'info');
+                        }
+                      }}
+                      className="flex items-center gap-2.5 px-3.5 py-2 cursor-pointer hover:bg-[#f8fafc] text-[#374151] font-medium border-t border-[#f1f5f9] mt-1 pt-2"
+                    >
+                      <Printer className="w-3.5 h-3.5 text-[#15803d]" />
+                      <span>Print Document</span>
                     </div>
                     <div
                       onClick={() => {
                         handleCopyMOM();
                         setExportMenuOpen(false);
                       }}
-                      className="flex items-center gap-2.5 px-3.5 py-2 cursor-pointer hover:bg-[#f8fafc] text-[#374151] font-medium border-t border-[#f1f5f9] mt-1 pt-2"
+                      className="flex items-center gap-2.5 px-3.5 py-2 cursor-pointer hover:bg-[#f8fafc] text-[#374151] font-medium"
                     >
                       <Copy className="w-3.5 h-3.5 text-[#7c3aed]" />
                       <span>Copy Formatted Text</span>
@@ -841,10 +877,11 @@ export const NotesScreen: React.FC = () => {
                   </p>
                   <button
                     onClick={() => generateSummaryForActive(activeTemplate, activeLang)}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold text-sm shadow-md transition active:scale-95 cursor-pointer"
+                    disabled={isGeneratingSummary}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold text-sm shadow-md transition active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Sparkles className="w-4 h-4 text-yellow-300" />
-                    <span>Generate Minutes of Meeting</span>
+                    <span>Generate Summary</span>
                   </button>
                 </>
               )}
@@ -947,55 +984,60 @@ export const NotesScreen: React.FC = () => {
                     </div>
 
                     {/* 3. Summary Block */}
-                    <div>
-                      <h3 className="text-xs font-black text-[#111827] mb-2 uppercase tracking-wide">
-                        {tmpl.summaryLabel}
-                      </h3>
-                      <p
-                        contentEditable
-                        suppressContentEditableWarning
-                        onBlur={(e) => updateActiveSummary({ summary: e.currentTarget.textContent || '' })}
-                        className="text-[14.5px] leading-relaxed text-[#374151] hover:bg-yellow-50/70 p-1.5 -ml-1.5 rounded transition"
-                      >
-                        {summary.summary}
-                      </p>
-                    </div>
+                    {summary.summary && summary.summary.trim().length > 0 && (
+                      <div>
+                        <h3 className="text-xs font-black text-[#111827] mb-2 uppercase tracking-wide">
+                          {tmpl.summaryLabel}
+                        </h3>
+                        <p
+                          contentEditable
+                          suppressContentEditableWarning
+                          onBlur={(e) => updateActiveSummary({ summary: e.currentTarget.textContent || '' })}
+                          className="text-[14.5px] leading-relaxed text-[#374151] hover:bg-yellow-50/70 p-1.5 -ml-1.5 rounded transition"
+                        >
+                          {summary.summary}
+                        </p>
+                      </div>
+                    )}
 
                     {/* 4. Key Decisions */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-xs font-black text-[#111827] uppercase tracking-wide">
-                          {tmpl.decisionsLabel}
-                        </h3>
-                        <button
-                          onClick={handleAddDecision}
-                          className="text-xs text-[#2563eb] hover:underline font-bold inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          <Plus className="w-3 h-3" /> Add item
-                        </button>
+                    {summary.keyDecisions && summary.keyDecisions.length > 0 && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-xs font-black text-[#111827] uppercase tracking-wide">
+                            {tmpl.decisionsLabel}
+                          </h3>
+                          <button
+                            onClick={handleAddDecision}
+                            className="text-xs text-[#2563eb] hover:underline font-bold inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="w-3 h-3" /> Add item
+                          </button>
+                        </div>
+                        <ul className="list-disc pl-5 space-y-1.5 text-[14px] text-[#374151]">
+                          {summary.keyDecisions.map((decision, idx) => (
+                            <li key={idx} className="leading-relaxed">
+                              <span
+                                contentEditable
+                                suppressContentEditableWarning
+                                onBlur={(e) => {
+                                  const updated = [...summary.keyDecisions];
+                                  updated[idx] = e.currentTarget.textContent || '';
+                                  updateActiveSummary({ keyDecisions: updated });
+                                }}
+                                className="hover:bg-yellow-50/70 p-0.5 rounded transition"
+                              >
+                                {decision}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                      <ul className="list-disc pl-5 space-y-1.5 text-[14px] text-[#374151]">
-                        {summary.keyDecisions.map((decision, idx) => (
-                          <li key={idx} className="leading-relaxed">
-                            <span
-                              contentEditable
-                              suppressContentEditableWarning
-                              onBlur={(e) => {
-                                const updated = [...summary.keyDecisions];
-                                updated[idx] = e.currentTarget.textContent || '';
-                                updateActiveSummary({ keyDecisions: updated });
-                              }}
-                              className="hover:bg-yellow-50/70 p-0.5 rounded transition"
-                            >
-                              {decision}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                    )}
 
                     {/* 5. Action Items Table */}
-                    <div>
+                    {summary.actionItems && summary.actionItems.length > 0 && (
+                      <div>
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="text-xs font-black text-[#111827] uppercase tracking-wide">
                           {tmpl.actionItemsLabel}
@@ -1109,6 +1151,7 @@ export const NotesScreen: React.FC = () => {
                         </table>
                       </div>
                     </div>
+                  )}
 
                     {/* 6. Discussion Highlights */}
                     <div>
@@ -1169,6 +1212,42 @@ export const NotesScreen: React.FC = () => {
                         </ul>
                       </div>
                     )}
+
+                    {/* 8. Additional Custom Template Sections */}
+                    {summary.sectionsData && Object.entries(summary.sectionsData).map(([secName, secVal], sIdx) => {
+                      const normKey = secName.toLowerCase();
+                      if (
+                        normKey.includes('summary') ||
+                        normKey.includes('decision') ||
+                        normKey.includes('action') ||
+                        normKey.includes('highlight') ||
+                        normKey.includes('next step')
+                      ) {
+                        return null;
+                      }
+                      if (!secVal) return null;
+                      return (
+                        <div key={sIdx} className="space-y-2">
+                          <h3 className="text-xs font-black text-[#111827] uppercase tracking-wide flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-[#2563eb]" />
+                            <span>{secName}</span>
+                          </h3>
+                          {Array.isArray(secVal) ? (
+                            <ul className="list-disc pl-5 space-y-1.5 text-[14px] text-[#374151]">
+                              {secVal.map((item: any, iIdx: number) => (
+                                <li key={iIdx} className="leading-relaxed">
+                                  {typeof item === 'object' && item !== null ? JSON.stringify(item) : String(item)}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-[14.5px] leading-relaxed text-[#374151]">
+                              {String(secVal)}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })()}
