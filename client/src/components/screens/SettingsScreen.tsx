@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Zap,
   Check,
+  Copy,
   Plus,
   Download,
   Trash2,
@@ -42,9 +43,17 @@ import {
   Play,
   Square,
   Table,
-  Database
+  Database,
+  ChevronUp,
+  ChevronDown,
+  Search,
+  Printer,
+  List,
+  ListOrdered
 } from 'lucide-react';
-import { SettingsTab, MOMTemplate, AIConnectionStatus, ProviderCredential, AIAgentOverride, AUDIO_CAPTURE_MODES } from '../../types/meeting.js';
+import { SettingsTab, MOMTemplate, MOMTemplateSection, MOMSectionType, AIConnectionStatus, ProviderCredential, AIAgentOverride, AUDIO_CAPTURE_MODES, TRANSCRIPTION_LANGUAGES, SUMMARY_LANGUAGES } from '../../types/meeting.js';
+import { normalizeSections, isBuiltInTemplateId, resolveActiveTemplate } from '../../utils/momTemplates.js';
+import { renderMomDocumentHtml, printMomDocument } from '../../utils/momDocumentRenderer.js';
 import {
   AI_PROVIDERS_CONFIG,
   AI_AGENTS_CONFIG,
@@ -84,7 +93,6 @@ import {
   SegmentedPills,
   StatusBadge,
   StarRating,
-  PathBox,
   ProgressBar,
   InlineConfirm
 } from './SettingsComponents.js';
@@ -291,6 +299,192 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
   const [testLatencyMs, setTestLatencyMs] = useState<number | null>(null);
   const [builtinModelStatus, setBuiltinModelStatus] = useState<'ready' | 'download_required' | 'downloading'>('ready');
   const [builtinDownloadProgress, setBuiltinDownloadProgress] = useState<number>(0);
+
+  // Summary Tab State
+  const [isSavingAutoSummary, setIsSavingAutoSummary] = useState<boolean>(false);
+  const [isSavingComponents, setIsSavingComponents] = useState<boolean>(false);
+  const [isSavingLanguage, setIsSavingLanguage] = useState<boolean>(false);
+
+  const handleToggleAutoSummary = async (newVal: boolean) => {
+    if (isSavingAutoSummary) return;
+    setIsSavingAutoSummary(true);
+    try {
+      await updateSettings({
+        autoSummaryOnConclude: newVal,
+        autoSummary: newVal
+      });
+      if (settings?.notifications) {
+        showToast(newVal ? 'Auto summary enabled' : 'Auto summary disabled', '', 'success');
+      }
+    } catch (err: any) {
+      showToast('Failed to update setting', err.message || 'Error updating auto summary', 'error');
+    } finally {
+      setIsSavingAutoSummary(false);
+    }
+  };
+
+  const handleToggleComponent = async (key: 'executiveSummary' | 'actionItems' | 'keyDecisions', newVal: boolean) => {
+    if (isSavingComponents) return;
+    const currentComponents = settings?.summaryComponents || {
+      executiveSummary: true,
+      actionItems: true,
+      keyDecisions: true
+    };
+    const count = (currentComponents.executiveSummary ? 1 : 0) + (currentComponents.actionItems ? 1 : 0) + (currentComponents.keyDecisions ? 1 : 0);
+    if (!newVal && count <= 1 && currentComponents[key]) {
+      showToast('At least one summary component must be enabled.', '', 'warning');
+      return;
+    }
+    const nextComponents = { ...currentComponents, [key]: newVal };
+    setIsSavingComponents(true);
+    try {
+      await updateSettings({ summaryComponents: nextComponents });
+      if (settings?.notifications) {
+        const labels = {
+          executiveSummary: 'Executive Summary',
+          actionItems: 'Action Items Matrix',
+          keyDecisions: 'Key Decisions'
+        };
+        showToast(`${labels[key]} ${newVal ? 'enabled' : 'disabled'}`, '', 'success');
+      }
+    } catch (err: any) {
+      showToast('Failed to update setting', err.message || 'Error updating component', 'error');
+    } finally {
+      setIsSavingComponents(false);
+    }
+  };
+
+  const handleLanguageChange = async (langCode: string) => {
+    if (isSavingLanguage) return;
+    setIsSavingLanguage(true);
+    try {
+      await updateSettings({ transcriptionLanguage: langCode });
+      const opt = TRANSCRIPTION_LANGUAGES.find(l => l.code === langCode);
+      if (settings?.notifications) {
+        showToast(`Transcription language updated to ${opt?.label || langCode}`, '', 'success');
+      }
+    } catch (err: any) {
+      showToast('Failed to update language', err.message || 'Error updating language', 'error');
+    } finally {
+      setIsSavingLanguage(false);
+    }
+  };
+
+  const handleSummaryLanguageChange = async (langCode: string) => {
+    if (isSavingLanguage) return;
+    setIsSavingLanguage(true);
+    try {
+      await updateSettings({ summaryLanguage: langCode });
+      const opt = SUMMARY_LANGUAGES.find(l => l.code === langCode);
+      if (settings?.notifications) {
+        showToast(`Summary language updated to ${opt?.label || langCode}`, '', 'success');
+      }
+    } catch (err: any) {
+      showToast('Failed to update summary language', err.message || 'Error updating summary language', 'error');
+    } finally {
+      setIsSavingLanguage(false);
+    }
+  };
+
+  const activeTemplate = useMemo(() => {
+    return resolveActiveTemplate(templates, settings?.defaultTemplateId, settings?.defaultTemplate);
+  }, [templates, settings?.defaultTemplateId, settings?.defaultTemplate]);
+
+  const previewExecSummary = useMemo(() => {
+    if (activeTemplate?.sections && activeTemplate.sections.length > 0) {
+      return activeTemplate.sections.slice(0, 3).map(s => {
+        const text = typeof s === 'string' ? s : (s.name || s.title || '');
+        return `• ${text.replace(/\s*\(.*?\)/, '')}`;
+      });
+    }
+    return [
+      '• Purpose & Strategic Context',
+      '• Critical Discussion Highlights',
+      '• Concluding Next Steps'
+    ];
+  }, [activeTemplate]);
+
+  const previewActionItems = useMemo(() => {
+    if (activeTemplate?.tableColumns && activeTemplate.tableColumns.length > 0) {
+      const cols = activeTemplate.tableColumns;
+      return {
+        header: cols.join(' | '),
+        row1: `${cols[0] ? 'Sarah' : 'Lead'} | ${cols[1] ? 'Deploy v1.2 Engine' : 'Task'} | ${cols[2] ? 'Fri' : 'Due'}${cols[3] ? ' | In Progress' : ''}`,
+        row2: `${cols[0] ? 'Alex' : 'Engineer'} | ${cols[1] ? 'Customer MOM Review' : 'Deliverable'} | ${cols[2] ? 'Mon' : 'Due'}${cols[3] ? ' | Completed' : ''}`
+      };
+    }
+    return {
+      header: 'Owner | Task | Due Date',
+      row1: 'Sarah | Deploy v1.2 Engine | Fri',
+      row2: 'Alex | Customer MOM Review | Mon'
+    };
+  }, [activeTemplate]);
+
+  const previewKeyDecisions = useMemo(() => {
+    if (activeTemplate?.sampleDocument) {
+      const sampleText = typeof activeTemplate.sampleDocument === 'string'
+        ? activeTemplate.sampleDocument
+        : (activeTemplate.sampleDocument.sectionsData?.['Key Decisions']?.join?.('\n') ||
+           activeTemplate.sampleDocument.agenda?.join?.('\n') ||
+           JSON.stringify(activeTemplate.sampleDocument));
+      const lines = sampleText.split('\n');
+      const decBullets: string[] = [];
+      let inDecisions = false;
+      for (const line of lines) {
+        const lower = line.toLowerCase();
+        if (lower.includes('decision') && line.startsWith('#')) {
+          inDecisions = true;
+          continue;
+        }
+        if (inDecisions && line.startsWith('#')) {
+          break;
+        }
+        if (inDecisions && (/^\d+\./.test(line.trim()) || line.trim().startsWith('-') || line.trim().startsWith('*'))) {
+          const clean = line.replace(/^[\d.*\-•]+\s*/, '').replace(/\*\*/g, '').trim();
+          if (clean.length > 0) decBullets.push(`✓ ${clean}`);
+          if (decBullets.length >= 3) break;
+        }
+      }
+      if (decBullets.length > 0) return decBullets;
+    }
+    return [
+      '✓ 100% On-Device AI Architecture',
+      '✓ Ratified 6 Canonical MOM Specs',
+      '✓ Zero-Telemetry Privacy Policy'
+    ];
+  }, [activeTemplate]);
+
+  const autoSummaryChecked = settings?.autoSummaryOnConclude ?? settings?.autoSummary ?? true;
+  const summaryComponentsConfig = settings?.summaryComponents || {
+    executiveSummary: true,
+    actionItems: true,
+    keyDecisions: true
+  };
+  const enabledComponentsCount = (summaryComponentsConfig.executiveSummary ? 1 : 0)
+    + (summaryComponentsConfig.actionItems ? 1 : 0)
+    + (summaryComponentsConfig.keyDecisions ? 1 : 0);
+
+  const activeTransLang = settings?.transcriptionLanguage || 'en';
+  const activeSumLang = (settings?.summaryLanguage === 'auto' || settings?.summaryLanguage === 'en') ? settings.summaryLanguage : 'en';
+
+  const isEnglishOnlyWarning = useMemo(() => {
+    if (activeTransLang === 'en' || activeTransLang === 'auto') return false;
+    const modelId = (activeTranscriptionModel?.id || settings?.selectedModel || settings?.transcriptionEngine || '').toLowerCase();
+    const modelName = (activeTranscriptionModel?.name || '').toLowerCase();
+    const modelDesc = (activeTranscriptionModel?.description || '').toLowerCase();
+    return modelId.includes('.en') || modelName.includes('.en') || modelDesc.includes('english only') || modelDesc.includes('english-only');
+  }, [activeTransLang, activeTranscriptionModel, settings?.selectedModel, settings?.transcriptionEngine]);
+
+  const currentLanguageDesc = useMemo(() => {
+    if (activeTransLang === 'auto') {
+      return 'Language is detected from the audio. MOM is written in the detected language.';
+    }
+    if (activeTransLang === 'en') {
+      return 'All transcription and structured MOM output is generated in English.';
+    }
+    const label = TRANSCRIPTION_LANGUAGES.find(l => l.code === activeTransLang)?.label || activeTransLang;
+    return `Audio transcription is captured in ${label}. Structured MOM output is generated in ${label}.`;
+  }, [activeTransLang]);
 
   // Check Built-in AI Model Disk Status on Mount & Selection Change
   useEffect(() => {
@@ -945,76 +1139,218 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
   // Template Modal State
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [templateFilter, setTemplateFilter] = useState<'all' | 'builtin' | 'custom'>('all');
+  const [templateSearch, setTemplateSearch] = useState('');
+  const [isCopyingBuiltIn, setIsCopyingBuiltIn] = useState(false);
   const [formName, setFormName] = useState('');
-  const [formCategory, setFormCategory] = useState('General & Operations');
+  const [formCategory, setFormCategory] = useState('General');
   const [formDescription, setFormDescription] = useState('');
-  const [formSections, setFormSections] = useState<string[]>([]);
+  const [formAccentColor, setFormAccentColor] = useState('#2563eb');
+  const [formSectionsList, setFormSectionsList] = useState<MOMTemplateSection[]>([]);
   const [formPromptInstructions, setFormPromptInstructions] = useState('');
-  const [newSectionInput, setNewSectionInput] = useState('');
+  const [newColumnInputs, setNewColumnInputs] = useState<Record<number, string>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const builtInCount = useMemo(() => templates.filter(t => isBuiltInTemplateId(t.id)).length, [templates]);
+  const customCount = useMemo(() => templates.filter(t => !isBuiltInTemplateId(t.id)).length, [templates]);
+
+  const filteredTemplates = useMemo(() => {
+    return templates.filter(t => {
+      const isBuiltIn = isBuiltInTemplateId(t.id);
+      if (templateFilter === 'builtin' && !isBuiltIn) return false;
+      if (templateFilter === 'custom' && isBuiltIn) return false;
+      if (templateSearch.trim()) {
+        const q = templateSearch.toLowerCase();
+        const inName = t.name.toLowerCase().includes(q);
+        const inDesc = (t.description || '').toLowerCase().includes(q);
+        const inCat = (t.category || '').toLowerCase().includes(q);
+        const inSections = normalizeSections(t.sections).some(s => (s.name || s.title || '').toLowerCase().includes(q));
+        return inName || inDesc || inCat || inSections;
+      }
+      return true;
+    });
+  }, [templates, templateFilter, templateSearch]);
 
   const handleOpenCreateModal = () => {
     setEditingTemplateId(null);
+    setIsCopyingBuiltIn(false);
     setFormName('');
-    setFormCategory('General & Operations');
+    setFormCategory('General');
     setFormDescription('');
-    setFormSections([
-      'Executive Summary',
-      'Key Decisions Made',
-      'Action Items Matrix (Owner, Task, Due Date)',
-      'Discussion Highlights',
-      'Next Steps & Follow-ups'
+    setFormAccentColor('#2563eb');
+    setFormSectionsList([
+      { id: 'exec-summary', title: 'Executive Summary', name: 'Executive Summary', type: 'text' },
+      { id: 'key-decisions', title: 'Key Decisions', name: 'Key Decisions', type: 'bullets' },
+      { id: 'action-items', title: 'Action Items', name: 'Action Items', type: 'table', columns: ['Owner', 'Task', 'Due Date', 'Status'] }
     ]);
-    setFormPromptInstructions('Generate structured Minutes of Meeting (MOM) according to defined sections.');
-    setNewSectionInput('');
+    setFormPromptInstructions('Synthesize clear, actionable minutes of meeting with key decisions and assigned tasks.');
+    setFormError(null);
+    setNewColumnInputs({});
     setIsTemplateModalOpen(true);
   };
 
   const handleOpenEditModal = (tpl: MOMTemplate) => {
-    setEditingTemplateId(tpl.id);
-    setFormName(tpl.name);
-    setFormCategory(tpl.category || 'General & Operations');
-    setFormDescription(tpl.description || '');
-    setFormSections(tpl.sections && tpl.sections.length > 0 ? [...tpl.sections] : ['Executive Summary', 'Key Decisions', 'Action Items']);
-    setFormPromptInstructions(tpl.promptInstructions || '');
-    setNewSectionInput('');
-    setIsTemplateModalOpen(true);
+    const isBuiltIn = isBuiltInTemplateId(tpl.id);
+    if (isBuiltIn) {
+      setEditingTemplateId(null);
+      setIsCopyingBuiltIn(true);
+      setFormName(`${tpl.name} (Copy)`);
+      setFormCategory(tpl.category || 'General');
+      setFormDescription(tpl.description || '');
+      setFormAccentColor(tpl.accentColor || '#2563eb');
+      setFormSectionsList(normalizeSections(tpl.sections).map(s => ({ ...s, columns: s.columns ? [...s.columns] : undefined })));
+      setFormPromptInstructions(tpl.promptInstructions || '');
+      setFormError(null);
+      setNewColumnInputs({});
+      setIsTemplateModalOpen(true);
+    } else {
+      setEditingTemplateId(tpl.id);
+      setIsCopyingBuiltIn(false);
+      setFormName(tpl.name);
+      setFormCategory(tpl.category || 'Custom');
+      setFormDescription(tpl.description || '');
+      setFormAccentColor(tpl.accentColor || '#2563eb');
+      setFormSectionsList(normalizeSections(tpl.sections).map(s => ({ ...s, columns: s.columns ? [...s.columns] : undefined })));
+      setFormPromptInstructions(tpl.promptInstructions || '');
+      setFormError(null);
+      setNewColumnInputs({});
+      setIsTemplateModalOpen(true);
+    }
   };
 
   const handleAddSection = () => {
-    if (newSectionInput.trim()) {
-      setFormSections(prev => [...prev, newSectionInput.trim()]);
-      setNewSectionInput('');
+    if (formSectionsList.length >= 10) {
+      setFormError('Maximum 10 sections allowed per template.');
+      return;
     }
+    setFormSectionsList(prev => [
+      ...prev,
+      {
+        id: `section-${prev.length + 1}`,
+        title: `New Section ${prev.length + 1}`,
+        name: `New Section ${prev.length + 1}`,
+        type: 'bullets'
+      }
+    ]);
+    setFormError(null);
   };
 
   const handleRemoveSection = (idx: number) => {
-    setFormSections(prev => prev.filter((_, i) => i !== idx));
+    if (formSectionsList.length <= 1) {
+      setFormError('At least 1 section is required.');
+      return;
+    }
+    setFormSectionsList(prev => prev.filter((_, i) => i !== idx));
+    setFormError(null);
+  };
+
+  const handleMoveSection = (idx: number, direction: 'up' | 'down') => {
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= formSectionsList.length) return;
+    setFormSectionsList(prev => {
+      const copy = [...prev];
+      const temp = copy[idx];
+      copy[idx] = copy[targetIdx];
+      copy[targetIdx] = temp;
+      return copy;
+    });
+  };
+
+  const handleUpdateSectionName = (idx: number, name: string) => {
+    setFormSectionsList(prev => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], name };
+      return copy;
+    });
+    if (formError && name.trim()) setFormError(null);
+  };
+
+  const handleUpdateSectionType = (idx: number, type: MOMSectionType) => {
+    setFormSectionsList(prev => {
+      const copy = [...prev];
+      const current = copy[idx];
+      const updated: MOMTemplateSection = { ...current, type };
+      if (type === 'table' && (!updated.columns || updated.columns.length === 0)) {
+        updated.columns = ['Owner', 'Task', 'Due Date', 'Status'];
+      }
+      copy[idx] = updated;
+      return copy;
+    });
+  };
+
+  const handleAddColumn = (secIdx: number) => {
+    const colName = (newColumnInputs[secIdx] || '').trim();
+    if (!colName) return;
+    setFormSectionsList(prev => {
+      const copy = [...prev];
+      const sec = copy[secIdx];
+      const cols = sec.columns ? [...sec.columns] : [];
+      if (!cols.includes(colName)) {
+        cols.push(colName);
+      }
+      copy[secIdx] = { ...sec, columns: cols };
+      return copy;
+    });
+    setNewColumnInputs(prev => ({ ...prev, [secIdx]: '' }));
+  };
+
+  const handleRemoveColumn = (secIdx: number, colIdx: number) => {
+    setFormSectionsList(prev => {
+      const copy = [...prev];
+      const sec = copy[secIdx];
+      const cols = (sec.columns || []).filter((_, i) => i !== colIdx);
+      copy[secIdx] = { ...sec, columns: cols.length > 0 ? cols : ['Column 1'] };
+      return copy;
+    });
   };
 
   const handleSaveTemplate = async () => {
-    if (!formName.trim()) {
-      showToast('Name Required', 'Please enter a template name.', 'warning');
+    const trimmedName = formName.trim();
+    if (!trimmedName || trimmedName.length > 80) {
+      setFormError('Please enter a template name between 1 and 80 characters.');
       return;
     }
 
-    if (editingTemplateId) {
-      await updateTemplate(editingTemplateId, {
-        name: formName.trim(),
-        category: formCategory,
-        description: formDescription.trim(),
-        sections: formSections.length > 0 ? formSections : ['Executive Summary', 'Action Items'],
-        promptInstructions: formPromptInstructions.trim()
-      });
-    } else {
-      await createTemplate({
-        name: formName.trim(),
-        category: formCategory,
-        description: formDescription.trim(),
-        sections: formSections.length > 0 ? formSections : ['Executive Summary', 'Action Items'],
-        promptInstructions: formPromptInstructions.trim()
-      });
+    if (templates.some(t => t.id !== editingTemplateId && t.name.toLowerCase() === trimmedName.toLowerCase())) {
+      setFormError('A template with this name already exists. Please choose a different name.');
+      return;
     }
-    setIsTemplateModalOpen(false);
+
+    if (formSectionsList.length === 0) {
+      setFormError('Template must contain at least 1 section.');
+      return;
+    }
+
+    if (formSectionsList.some(s => !(s.name || s.title || '').trim())) {
+      setFormError('All section names must be non-empty.');
+      return;
+    }
+
+    try {
+      if (editingTemplateId) {
+        await updateTemplate(editingTemplateId, {
+          name: trimmedName,
+          category: formCategory,
+          description: formDescription.trim(),
+          accentColor: formAccentColor,
+          sections: formSectionsList,
+          promptInstructions: formPromptInstructions.trim()
+        });
+      } else {
+        await createTemplate({
+          name: trimmedName,
+          category: formCategory,
+          description: formDescription.trim(),
+          accentColor: formAccentColor,
+          sections: formSectionsList,
+          promptInstructions: formPromptInstructions.trim()
+        });
+      }
+      setIsTemplateModalOpen(false);
+      setFormError(null);
+    } catch (err: any) {
+      setFormError(err.message || 'Failed to save template');
+    }
   };
 
   
@@ -1121,6 +1457,29 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ initialTab = 're
       navigator.clipboard.writeText(path);
     }
     showToast('Path Copied', `${label} copied to clipboard.`, 'info');
+  };
+
+  const [copiedStorageKey, setCopiedStorageKey] = useState<string | null>(null);
+  const copiedStorageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedStorageTimerRef.current) {
+        clearTimeout(copiedStorageTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleCopyStoragePath = (path: string, label: string, key: string) => {
+    if (!path) return;
+    handleCopyPath(path, label);
+    if (copiedStorageTimerRef.current) {
+      clearTimeout(copiedStorageTimerRef.current);
+    }
+    setCopiedStorageKey(key);
+    copiedStorageTimerRef.current = setTimeout(() => {
+      setCopiedStorageKey(null);
+    }, 1500);
   };
 
 
@@ -2746,7 +3105,7 @@ if (!settings) return null;
         {/* 4. SUMMARY TAB */}
         {settingsTab === 'summary' && (
           <div className="space-y-4">
-            {/* Card: Summary Generation */}
+            {/* Card 1: Summary Generation */}
             <div className="border border-[#e5e7eb] rounded-2xl p-5 bg-white shadow-xs space-y-3.5 dark:border-neutral-800 dark:bg-neutral-900">
               <div className="flex items-center justify-between pb-2.5 border-b border-[#f3f4f6] dark:border-neutral-800">
                 <div className="flex items-center gap-2">
@@ -2756,99 +3115,129 @@ if (!settings) return null;
                 <StatusBadge tone="info">Instant Post-Processing</StatusBadge>
               </div>
 
-              <div className="flex items-center justify-between p-3.5 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] gap-4">
-                <div>
-                  <div className="text-xs font-bold text-[#111827]">Auto Summary on Meeting Conclude</div>
-                  <p className="text-[11px] text-[#6b7280] mt-0.5">
-                    Immediately synthesize structured Minutes of Meeting (MOM), key decisions, and action items as soon as recording concludes.
-                  </p>
+              <div className="p-3.5 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] space-y-2.5">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-xs font-bold text-[#111827]">Auto Summary on Meeting Conclude</div>
+                    <p className="text-[11px] text-[#6b7280] mt-0.5">
+                      Immediately synthesize structured Minutes of Meeting (MOM), key decisions, and action items as soon as recording concludes.
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={autoSummaryChecked}
+                    disabled={isSavingAutoSummary}
+                    onChange={handleToggleAutoSummary}
+                    label="Auto Summary on Meeting Conclude"
+                    ariaLabel="Auto Summary on Meeting Conclude"
+                  />
                 </div>
-                <Toggle
-                  checked={!!settings.autoSummary}
-                  onChange={(checked) => updateSettings({ autoSummary: checked })}
-                  label="Auto Summary"
-                />
+                <p className="text-[11px] text-[#6b7280] pt-2 border-t border-[#e5e7eb] dark:border-neutral-800">
+                  {autoSummaryChecked
+                    ? 'Auto summary is ON. A structured MOM will be generated automatically when a meeting ends.'
+                    : "Auto summary is OFF. Meetings will be transcribed but no summary will be generated until you click 'Generate Summary' manually."}
+                </p>
               </div>
             </div>
 
-            {/* 3 Output Component Preview Cards */}
+            {/* Card 2: Synthesized Output Components */}
             <div className="border border-[#e5e7eb] rounded-2xl p-5 bg-white shadow-xs space-y-3.5 dark:border-neutral-800 dark:bg-neutral-900">
               <div className="flex items-center justify-between pb-2.5 border-b border-[#f3f4f6] dark:border-neutral-800">
                 <div className="flex items-center gap-2">
                   <Layers className="w-4 h-4 text-[#2563eb]" />
                   <h4 className="text-sm font-bold text-[#111827] dark:text-neutral-100">Synthesized Output Components</h4>
                 </div>
-                <span className="text-xs text-[#6b7280]">3 Essential Reports</span>
+                <span className="text-xs text-[#6b7280] font-medium">{enabledComponentsCount} of 3 enabled</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {/* 1. Executive Summary */}
-                <div className="border border-[#e5e7eb] rounded-xl p-3.5 bg-[#f9fafb] flex flex-col justify-between space-y-2">
+                <div className={`border rounded-xl p-3.5 flex flex-col justify-between space-y-2 transition-all ${
+                  summaryComponentsConfig.executiveSummary ? 'border-[#e5e7eb] bg-[#f9fafb]' : 'border-gray-200 bg-gray-50/60 opacity-60'
+                }`}>
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-xs font-bold text-[#111827] flex items-center gap-1.5">
                         <FileText className="w-3.5 h-3.5 text-[#2563eb]" />
                         <span>Executive Summary</span>
                       </span>
-                      <StatusBadge tone="info">Overview</StatusBadge>
+                      <Toggle
+                        checked={summaryComponentsConfig.executiveSummary}
+                        disabled={isSavingComponents}
+                        onChange={(val) => handleToggleComponent('executiveSummary', val)}
+                        ariaLabel="Toggle Executive Summary"
+                      />
                     </div>
                     <p className="text-[11px] text-[#6b7280] leading-relaxed">
                       Structured high-level briefing distilling discussion points, context, and key takeaways in concise paragraphs.
                     </p>
                   </div>
                   <div className="text-[10px] font-mono text-[#4b5563] bg-white p-2 rounded-lg border border-[#e5e7eb] space-y-0.5">
-                    <div>• Purpose &amp; Strategic Context</div>
-                    <div>• Critical Discussion Highlights</div>
-                    <div>• Concluding Next Steps</div>
+                    {previewExecSummary.map((line, idx) => (
+                      <div key={idx} className="truncate">{line}</div>
+                    ))}
                   </div>
                 </div>
 
                 {/* 2. Action Items Matrix */}
-                <div className="border border-[#e5e7eb] rounded-xl p-3.5 bg-[#f9fafb] flex flex-col justify-between space-y-2">
+                <div className={`border rounded-xl p-3.5 flex flex-col justify-between space-y-2 transition-all ${
+                  summaryComponentsConfig.actionItems ? 'border-[#e5e7eb] bg-[#f9fafb]' : 'border-gray-200 bg-gray-50/60 opacity-60'
+                }`}>
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-xs font-bold text-[#111827] flex items-center gap-1.5">
                         <CheckCircle2 className="w-3.5 h-3.5 text-[#15803d]" />
                         <span>Action Items Matrix</span>
                       </span>
-                      <StatusBadge tone="success">Deliverables</StatusBadge>
+                      <Toggle
+                        checked={summaryComponentsConfig.actionItems}
+                        disabled={isSavingComponents}
+                        onChange={(val) => handleToggleComponent('actionItems', val)}
+                        ariaLabel="Toggle Action Items Matrix"
+                      />
                     </div>
                     <p className="text-[11px] text-[#6b7280] leading-relaxed">
                       Tabular matrix capturing ownership, deliverables, due dates, and status.
                     </p>
                   </div>
                   <div className="text-[10px] font-mono text-[#4b5563] bg-white p-2 rounded-lg border border-[#e5e7eb] space-y-0.5">
-                    <div>Owner | Task | Due Date</div>
-                    <div className="text-[#111827]">Sarah | Deploy v1.2 Engine | Fri</div>
-                    <div className="text-[#111827]">Alex | Customer MOM Review | Mon</div>
+                    <div className="truncate font-semibold text-[#111827]">{previewActionItems.header}</div>
+                    <div className="truncate text-[#4b5563]">{previewActionItems.row1}</div>
+                    <div className="truncate text-[#4b5563]">{previewActionItems.row2}</div>
                   </div>
                 </div>
 
                 {/* 3. Key Decisions */}
-                <div className="border border-[#e5e7eb] rounded-xl p-3.5 bg-[#f9fafb] flex flex-col justify-between space-y-2">
+                <div className={`border rounded-xl p-3.5 flex flex-col justify-between space-y-2 transition-all ${
+                  summaryComponentsConfig.keyDecisions ? 'border-[#e5e7eb] bg-[#f9fafb]' : 'border-gray-200 bg-gray-50/60 opacity-60'
+                }`}>
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-xs font-bold text-[#111827] flex items-center gap-1.5">
                         <ShieldCheck className="w-3.5 h-3.5 text-[#2563eb]" />
                         <span>Key Decisions</span>
                       </span>
-                      <StatusBadge tone="info">Consensus</StatusBadge>
+                      <Toggle
+                        checked={summaryComponentsConfig.keyDecisions}
+                        disabled={isSavingComponents}
+                        onChange={(val) => handleToggleComponent('keyDecisions', val)}
+                        ariaLabel="Toggle Key Decisions"
+                      />
                     </div>
                     <p className="text-[11px] text-[#6b7280] leading-relaxed">
                       Bullet-point inventory of agreed conclusions, strategic decisions, and commitments.
                     </p>
                   </div>
                   <div className="text-[10px] font-mono text-[#4b5563] bg-white p-2 rounded-lg border border-[#e5e7eb] space-y-0.5">
-                    <div>✓ 100% On-Device AI Architecture</div>
-                    <div>✓ Ratified 6 Canonical MOM Specs</div>
-                    <div>✓ Zero-Telemetry Privacy Policy</div>
+                    {previewKeyDecisions.map((line, idx) => (
+                      <div key={idx} className="truncate">{line}</div>
+                    ))}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Localization card */}
-            <div className="border border-[#e5e7eb] rounded-2xl p-5 bg-white shadow-xs space-y-3 dark:border-neutral-800 dark:bg-neutral-900">
+            {/* Card 3: Localization card */}
+            <div className="border border-[#e5e7eb] rounded-2xl p-5 bg-white shadow-xs space-y-3.5 dark:border-neutral-800 dark:bg-neutral-900">
               <div className="flex items-center justify-between pb-2.5 border-b border-[#f3f4f6] dark:border-neutral-800">
                 <div className="flex items-center gap-2">
                   <Globe className="w-4 h-4 text-[#2563eb]" />
@@ -2856,14 +3245,69 @@ if (!settings) return null;
                 </div>
                 <StatusBadge tone="info">High Precision</StatusBadge>
               </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#eff6ff] border border-[#bfdbfe] text-[#1e3a8a] flex items-center gap-1.5">
-                  <Check className="w-3.5 h-3.5 text-[#2563eb]" />
-                  <span>Active Language: English</span>
-                </span>
-                <span className="text-xs text-[#6b7280]">
-                  All transcription and structured MOM output generation is formatted in English.
-                </span>
+
+              <div className="space-y-3">
+                {/* Transcription Language Row */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-[#e5e7eb] bg-[#f9fafb]">
+                  <div className="space-y-0.5 max-w-md">
+                    <div className="text-xs font-bold text-[#111827]">Audio Transcription Language</div>
+                    <p className="text-[11px] text-[#6b7280]">
+                      {currentLanguageDesc}
+                    </p>
+                  </div>
+
+                  <div className="relative inline-flex items-center">
+                    <select
+                      value={activeTransLang}
+                      disabled={isSavingLanguage}
+                      onChange={(e) => handleLanguageChange(e.target.value)}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#eff6ff] border border-[#bfdbfe] text-[#1e3a8a] cursor-pointer hover:bg-[#dbeafe] transition appearance-none pr-8 focus:outline-none focus:ring-2 focus:ring-[#2563eb] disabled:opacity-50"
+                    >
+                      {TRANSCRIPTION_LANGUAGES.map((l) => (
+                        <option key={l.code} value={l.code}>
+                          {l.label}
+                        </option>
+                      ))}
+                    </select>
+                    <Check className="w-3.5 h-3.5 text-[#2563eb] absolute right-2.5 pointer-events-none" />
+                  </div>
+                </div>
+
+                {/* English-only Model Warning Badge */}
+                {isEnglishOnlyWarning && (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>The active model supports English only. Pick a multilingual Whisper model.</span>
+                  </div>
+                )}
+
+                {/* Summary Output Language Row */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-[#e5e7eb] bg-[#f9fafb]">
+                  <div className="space-y-0.5 max-w-md">
+                    <div className="text-xs font-bold text-[#111827]">Summary Output Language</div>
+                    <p className="text-[11px] text-[#6b7280]">
+                      {activeSumLang === 'auto'
+                        ? 'MOM language will be automatically matched to the meeting.'
+                        : 'MOM is synthesized in English.'}
+                    </p>
+                  </div>
+
+                  <div className="relative inline-flex items-center">
+                    <select
+                      value={activeSumLang}
+                      disabled={isSavingLanguage}
+                      onChange={(e) => handleSummaryLanguageChange(e.target.value)}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#eff6ff] border border-[#bfdbfe] text-[#1e3a8a] cursor-pointer hover:bg-[#dbeafe] transition appearance-none pr-8 focus:outline-none focus:ring-2 focus:ring-[#2563eb] disabled:opacity-50"
+                    >
+                      {SUMMARY_LANGUAGES.map((l) => (
+                        <option key={l.code} value={l.code}>
+                          {l.label}
+                        </option>
+                      ))}
+                    </select>
+                    <Check className="w-3.5 h-3.5 text-[#2563eb] absolute right-2.5 pointer-events-none" />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -2871,7 +3315,7 @@ if (!settings) return null;
 
         {/* 5. TEMPLATES TAB */}
         {settingsTab === 'templates' && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             {/* Header & Make Your Own Template Button */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#e5e7eb] pb-3">
               <div>
@@ -2895,71 +3339,283 @@ if (!settings) return null;
               </button>
             </div>
 
-            {/* List of Templates */}
-            <div className="space-y-3">
-              {templates.map((tpl) => {
-                const isSelectedDefault = settings.defaultTemplate === tpl.name || tpl.isDefault;
+            {/* Active Template Hero Card */}
+            {activeTemplate && (
+              <div className="border border-[#bfdbfe] bg-gradient-to-r from-[#eff6ff] via-[#f8faff] to-white rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-2 flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#1e40af]">Active Default Template</span>
+                    <span
+                      className="text-[11px] font-bold px-2 py-0.5 rounded-full border"
+                      style={{
+                        backgroundColor: `${activeTemplate.accentColor || '#2563eb'}15`,
+                        color: activeTemplate.accentColor || '#2563eb',
+                        borderColor: `${activeTemplate.accentColor || '#2563eb'}40`
+                      }}
+                    >
+                      {activeTemplate.category || 'Standard'}
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#dcfce7] text-[#15803d] border border-[#86efac]">
+                      <Check className="w-3 h-3" /> Active Default
+                    </span>
+                  </div>
+
+                  <h3 className="text-lg font-black text-[#111827] dark:text-neutral-100">
+                    {activeTemplate.name}
+                  </h3>
+
+                  <p className="text-xs text-[#4b5563] leading-relaxed">
+                    Used for every new meeting minutes document. Edit sections below or switch templates.
+                  </p>
+
+                  <div className="flex items-center gap-2 pt-1 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewDocTemplate(activeTemplate)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#bfdbfe] bg-white hover:bg-[#eff6ff] text-[#1e40af] text-xs font-bold transition shadow-xs cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-[#2563eb]" />
+                      <span>Preview</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => document.getElementById('templates-grid')?.scrollIntoView({ behavior: 'smooth' })}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#d1d5db] bg-white hover:bg-gray-50 text-[#374151] text-xs font-bold transition shadow-xs cursor-pointer"
+                    >
+                      <Sliders className="w-3.5 h-3.5 text-[#6b7280]" />
+                      <span>Change</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Mini A4 Document Thumbnail */}
+                <div className="flex-none hidden sm:flex items-center justify-center">
+                  <div className="w-20 h-24 bg-white border border-[#cbd5e1] rounded-sm p-2 flex flex-col justify-between shadow-xs select-none pointer-events-none relative overflow-hidden">
+                    <div
+                      className="h-1 rounded-full w-full mb-1.5"
+                      style={{ backgroundColor: activeTemplate.accentColor || '#2563eb' }}
+                    />
+                    <div className="space-y-1 flex-1">
+                      <div className="h-1 bg-slate-300 rounded w-3/4" />
+                      <div className="h-1 bg-slate-200 rounded w-full" />
+                      <div className="h-1 bg-slate-200 rounded w-5/6" />
+                      <div className="h-1 bg-slate-100 rounded w-2/3" />
+                    </div>
+                    <div className="text-[7.5px] font-bold text-center text-[#15803d] bg-[#dcfce7] rounded py-0.5">
+                      ✓ Active
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Filter & Search Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+              {/* Segmented Filter Pills */}
+              <div className="inline-flex p-1 rounded-xl bg-[#f1f5f9] border border-[#e2e8f0] self-start">
+                <button
+                  type="button"
+                  onClick={() => setTemplateFilter('all')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    templateFilter === 'all'
+                      ? 'bg-white text-[#1e40af] shadow-xs'
+                      : 'text-[#64748b] hover:text-[#0f172a]'
+                  }`}
+                >
+                  All ({templates.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTemplateFilter('builtin')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    templateFilter === 'builtin'
+                      ? 'bg-white text-[#1e40af] shadow-xs'
+                      : 'text-[#64748b] hover:text-[#0f172a]'
+                  }`}
+                >
+                  Built-in ({builtInCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTemplateFilter('custom')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    templateFilter === 'custom'
+                      ? 'bg-white text-[#1e40af] shadow-xs'
+                      : 'text-[#64748b] hover:text-[#0f172a]'
+                  }`}
+                >
+                  Custom ({customCount})
+                </button>
+              </div>
+
+              {/* Search Input */}
+              <div className="relative w-full sm:w-64">
+                <Search className="w-3.5 h-3.5 text-[#94a3b8] absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={templateSearch}
+                  onChange={(e) => setTemplateSearch(e.target.value)}
+                  placeholder="Search templates..."
+                  className="w-full h-8 pl-8 pr-3 rounded-xl border border-[#e2e8f0] bg-white text-xs text-[#111827] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 outline-none"
+                />
+                {templateSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setTemplateSearch('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94a3b8] hover:text-[#334155]"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Template Card Grid (1 col mobile, 2 col desktop) */}
+            <div id="templates-grid" className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredTemplates.map((tpl) => {
+                const isSelectedDefault = (settings.defaultTemplateId ? settings.defaultTemplateId === tpl.id : settings.defaultTemplate === tpl.name) || tpl.isDefault;
+                const isBuiltIn = isBuiltInTemplateId(tpl.id);
+                const normSecs = normalizeSections(tpl.sections);
+                const tableSec = normSecs.find(s => s.type === 'table');
+                const actionCols = (tpl as any).actionItemsColumns || tableSec?.columns || [];
 
                 return (
                   <div
                     key={tpl.id}
-                    className={`border rounded-2xl p-4 transition space-y-2.5 ${
+                    className={`border rounded-2xl p-5 transition flex flex-col justify-between space-y-3.5 ${
                       isSelectedDefault
-                        ? 'border-2 border-[#2563eb] bg-[#eff6ff]/30 shadow-xs'
+                        ? 'border-2 border-[#2563eb] bg-[#eff6ff]/25 shadow-xs'
                         : 'border-[#e5e7eb] bg-white hover:border-[#cbd5e1]'
                     }`}
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <span className="font-bold text-sm text-[#111827] dark:text-neutral-100">{tpl.name}</span>
+                    <div className="space-y-2.5">
+                      {/* Top Header Row */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full flex-none"
+                            style={{ backgroundColor: tpl.accentColor || '#2563eb' }}
+                          />
+                          <h4 className="font-bold text-base text-[#111827] dark:text-neutral-100 truncate">
+                            {tpl.name}
+                          </h4>
                           <span className="bg-[#eff6ff] text-[#1e40af] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[#bfdbfe]">
                             {tpl.category}
                           </span>
-                          {isSelectedDefault && (
-                            <span className="bg-[#dcfce7] text-[#15803d] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[#86efac] flex items-center gap-1">
-                              <Check className="w-3 h-3" /> Active Default
+                          {isBuiltIn && (
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#f1f5f9] text-[#475569] text-[10px] font-semibold border border-[#e2e8f0]"
+                              title="Built-in template cannot be deleted. Click Edit to create an editable copy."
+                            >
+                              <Lock className="w-2.5 h-2.5" />
+                              <span>Built-in</span>
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-[#6b7280] leading-relaxed">
-                          {tpl.description}
-                        </p>
+
+                        {isSelectedDefault && (
+                          <span className="bg-[#dcfce7] text-[#15803d] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[#86efac] flex items-center gap-1 flex-none">
+                            <Check className="w-3 h-3" /> Active Default
+                          </span>
+                        )}
                       </div>
 
-                      {/* Top Action Buttons */}
-                      <div className="flex items-center gap-2 flex-none pt-1 sm:pt-0 flex-wrap">
+                      {/* Description */}
+                      <p className="text-xs text-[#6b7280] line-clamp-2 leading-relaxed">
+                        {tpl.description}
+                      </p>
+
+                      {/* Extracted Sections Chips */}
+                      <div className="pt-2 border-t border-[#f3f4f6]">
+                        <div className="text-[10px] font-bold text-[#6b7280] mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                          <Layers className="w-3 h-3 text-[#2563eb]" />
+                          <span>Sections ({normSecs.length}):</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {normSecs.map((sec, idx) => (
+                            <span
+                              key={idx}
+                              className="bg-[#f9fafb] text-[#374151] border border-[#e5e7eb] px-2 py-0.5 rounded-md text-[10px] font-medium flex items-center gap-1"
+                            >
+                              {sec.type === 'table' ? (
+                                <Table className="w-2.5 h-2.5 text-[#15803d]" />
+                              ) : sec.type === 'numbered' ? (
+                                <ListOrdered className="w-2.5 h-2.5 text-[#7c3aed]" />
+                              ) : sec.type === 'text' ? (
+                                <FileText className="w-2.5 h-2.5 text-[#2563eb]" />
+                              ) : (
+                                <List className="w-2.5 h-2.5 text-[#0284c7]" />
+                              )}
+                              <span>{sec.name}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Action Items Matrix Columns */}
+                      {actionCols.length > 0 && (
+                        <div className="pt-1">
+                          <div className="text-[10px] font-bold text-[#15803d] mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                            <Table className="w-3 h-3 text-[#15803d]" />
+                            <span>Table Columns:</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {actionCols.map((col: string, idx: number) => (
+                              <span
+                                key={idx}
+                                className="bg-[#dcfce7] text-[#15803d] border border-[#86efac] px-2 py-0.5 rounded-md text-[10px] font-mono font-bold"
+                              >
+                                {col}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bottom Action Buttons */}
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#f3f4f6] flex-wrap">
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => setPreviewDocTemplate(tpl)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border border-[#d1d5db] bg-white text-[#374151] hover:bg-[#eff6ff] hover:text-[#2563eb] text-xs font-bold transition cursor-pointer shadow-xs"
-                          title="Preview sample document generated by this template"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#d1d5db] bg-white text-[#374151] hover:bg-[#eff6ff] hover:text-[#2563eb] text-xs font-bold transition cursor-pointer shadow-xs"
+                          title="Preview document generated by this template"
                         >
                           <Eye className="w-3.5 h-3.5 text-[#2563eb]" />
-                          <span>Preview Example Doc</span>
+                          <span>Preview</span>
                         </button>
-                        {!isSelectedDefault && (
+
+                        {isSelectedDefault ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#dcfce7] border border-[#86efac] text-[#15803d] text-xs font-bold shadow-2xs">
+                            <Check className="w-3.5 h-3.5" /> Active Default
+                          </span>
+                        ) : (
                           <button
                             type="button"
                             onClick={() => setDefaultTemplate(tpl.id)}
-                            className="px-2.5 py-1 rounded-xl border border-[#d1d5db] bg-white hover:bg-[#eff6ff] text-xs font-bold text-[#374151] transition cursor-pointer"
+                            className="px-3 py-1.5 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-bold transition shadow-xs cursor-pointer"
                           >
-                            Set as Default
+                            Use This Template
                           </button>
                         )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => handleOpenEditModal(tpl)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border border-[#bfdbfe] bg-[#eff6ff] text-[#1e40af] hover:bg-[#dbeafe] text-xs font-bold transition cursor-pointer"
-                          title="Edit template details"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-[#bfdbfe] bg-[#eff6ff] text-[#1e40af] hover:bg-[#dbeafe] text-xs font-bold transition cursor-pointer"
+                          title={isBuiltIn ? 'Create an editable copy of this built-in template' : 'Edit template'}
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                           <span>Edit</span>
                         </button>
-                        {templates.length > 1 && (
+
+                        {!isBuiltIn && (
                           confirmDeleteId === tpl.id ? (
                             <InlineConfirm
-                              message="Delete?"
+                              message="Delete template?"
                               onCancel={() => setConfirmDeleteId(null)}
                               onConfirm={() => {
                                 deleteTemplate(tpl.id);
@@ -2970,7 +3626,7 @@ if (!settings) return null;
                             <button
                               type="button"
                               onClick={() => setConfirmDeleteId(tpl.id)}
-                              className="p-1 rounded-xl border border-[#fecaca] bg-[#fef2f2] text-[#dc2626] hover:bg-[#fee2e2] transition cursor-pointer"
+                              className="p-1.5 rounded-xl border border-[#fecaca] bg-[#fef2f2] text-[#dc2626] hover:bg-[#fee2e2] transition cursor-pointer"
                               title="Delete template"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -2979,48 +3635,27 @@ if (!settings) return null;
                         )}
                       </div>
                     </div>
-
-                    {/* Extracted Sections Preview */}
-                    <div className="pt-2 border-t border-[#f3f4f6] dark:border-neutral-800">
-                      <div className="text-[10px] font-bold text-[#6b7280] mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
-                        <Layers className="w-3 h-3 text-[#2563eb]" />
-                        <span>Extracted Report Sections ({tpl.sections.length}):</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {tpl.sections.map((section, idx) => (
-                          <span
-                            key={idx}
-                            className="bg-[#f9fafb] text-[#374151] border border-[#e5e7eb] px-2 py-0.5 rounded-md text-[10px] font-medium"
-                          >
-                            {section}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Table Columns Preview */}
-                    {(tpl as any).actionItemsColumns && (tpl as any).actionItemsColumns.length > 0 && (
-                      <div className="pt-1">
-                        <div className="text-[10px] font-bold text-[#15803d] mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
-                          <Table className="w-3 h-3 text-[#15803d]" />
-                          <span>Action Items Matrix Columns:</span>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {(tpl as any).actionItemsColumns.map((col: string, idx: number) => (
-                            <span
-                              key={idx}
-                              className="bg-[#dcfce7] text-[#15803d] border border-[#86efac] px-2 py-0.5 rounded-md text-[10px] font-mono font-bold"
-                            >
-                              {col}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 );
               })}
             </div>
+
+            {filteredTemplates.length === 0 && (
+              <div className="p-8 text-center bg-white border border-[#e5e7eb] rounded-2xl space-y-2">
+                <FileText className="w-8 h-8 text-[#94a3b8] mx-auto" />
+                <div className="text-sm font-bold text-[#111827]">No templates found</div>
+                <p className="text-xs text-[#6b7280]">
+                  {templateSearch ? `No templates matching "${templateSearch}".` : 'No templates match the selected filter.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setTemplateFilter('all'); setTemplateSearch(''); }}
+                  className="px-3 py-1.5 rounded-xl bg-[#eff6ff] text-[#2563eb] font-bold text-xs"
+                >
+                  Clear Filters
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -3063,14 +3698,14 @@ if (!settings) return null;
             </div>
 
             {/* Local Storage Card */}
-            <div className="border border-[#e5e7eb] rounded-2xl p-5 bg-white shadow-xs space-y-3.5 dark:border-neutral-800 dark:bg-neutral-900">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-[#f3f4f6] dark:border-neutral-800">
-                <div>
+            <div className="border border-[#e5e7eb] rounded-2xl p-5 bg-white shadow-xs dark:border-neutral-800 dark:bg-neutral-900">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#e5e7eb] dark:border-neutral-800">
+                <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <HardDrive className="w-4 h-4 text-[#2563eb]" />
-                    <h4 className="text-sm font-bold text-[#111827] dark:text-neutral-100">Local Storage &amp; Data Verification</h4>
+                    <HardDrive className="w-4 h-4 text-[#2563eb] shrink-0" />
+                    <h4 className="text-sm font-bold text-[#111827] dark:text-neutral-100 truncate">Local Storage &amp; Data Verification</h4>
                   </div>
-                  <p className="text-xs text-[#6b7280]">
+                  <p className="text-xs text-[#6b7280] dark:text-neutral-400">
                     100% on-device data isolation. Inspect and manage local directories directly in macOS Finder.
                   </p>
                 </div>
@@ -3078,99 +3713,297 @@ if (!settings) return null;
                   type="button"
                   onClick={handleVerifyStorage}
                   disabled={isVerifyingStorage}
-                  className="px-3.5 py-1.5 rounded-xl border border-[#d1d5db] bg-white hover:bg-[#eff6ff] hover:text-[#2563eb] text-xs font-bold text-[#374151] inline-flex items-center gap-1.5 shadow-xs transition cursor-pointer flex-none disabled:opacity-50"
+                  className="w-full sm:w-auto px-3.5 py-1.5 rounded-xl border border-[#d1d5db] bg-white hover:bg-[#eff6ff] hover:text-[#2563eb] hover:border-[#bfdbfe] text-xs font-bold text-[#374151] inline-flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer shrink-0 disabled:opacity-50 dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-750"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 text-[#2563eb] ${isVerifyingStorage ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`w-3.5 h-3.5 text-[#2563eb] shrink-0 ${isVerifyingStorage ? 'animate-spin' : ''}`} />
                   <span>{isVerifyingStorage ? 'Verifying...' : 'Verify Storage Integrity'}</span>
                 </button>
               </div>
 
               {storageVerifyMsg && (
-                <div className="p-2.5 rounded-xl bg-[#ecfdf5] border border-[#a7f3d0] text-xs text-[#065f46] flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-[#10b981] flex-none" />
+                <div className="mt-4 p-2.5 rounded-xl bg-[#ecfdf5] border border-[#a7f3d0] text-xs text-[#065f46] flex items-center gap-2 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-300">
+                  <CheckCircle2 className="w-4 h-4 text-[#10b981] shrink-0" />
                   <span>{storageVerifyMsg}</span>
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                 {/* 1. Audio Recordings Folder */}
-                <div className="p-3.5 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] flex flex-col justify-between space-y-2.5">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#111827] flex items-center gap-1.5">
-                        <FileAudio className="w-3.5 h-3.5 text-[#2563eb]" />
-                        <span>Audio Files</span>
-                      </span>
-                      <span className="text-[10px] font-bold text-[#1e3a8a] bg-[#eff6ff] px-2 py-0.5 rounded border border-[#bfdbfe]">
-                        {storageStats?.audioStorageFormatted || '0 B'}
-                      </span>
+                {(() => {
+                  const audioPath = storageStats?.realUploadsPath || settings?.storagePath || '/Users/muhammedshraeef/Movies/minomeet-recordings';
+                  const hasPath = Boolean(audioPath && audioPath.trim());
+                  const isCopied = copiedStorageKey === 'audio';
+                  const filesCount = storageStats?.audioFilesCount ?? 0;
+                  const isEmpty = filesCount === 0;
+
+                  return (
+                    <div className="flex flex-col h-full rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] p-4 gap-3 overflow-hidden min-w-0 dark:border-neutral-800 dark:bg-neutral-850">
+                      {/* Header row */}
+                      <div className="flex items-center justify-between gap-2 min-w-0">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <FileAudio className="w-4 h-4 text-[#2563eb] shrink-0" />
+                          <span className="text-sm font-bold text-[#111827] dark:text-neutral-100 truncate">
+                            Audio Files
+                          </span>
+                        </div>
+                        <span className="shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold text-[#1e3a8a] bg-[#eff6ff] border border-[#bfdbfe] dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800">
+                          {storageStats?.audioStorageFormatted || '0 B'}
+                        </span>
+                      </div>
+
+                      {/* Path box */}
+                      <div
+                        className="rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 min-w-0 dark:border-neutral-800 dark:bg-neutral-900"
+                        title={hasPath ? audioPath : undefined}
+                      >
+                        <span className="block font-mono text-[11px] text-[#4b5563] break-all line-clamp-2 dark:text-neutral-300">
+                          {hasPath ? (
+                            audioPath
+                          ) : (
+                            <span className="text-[#9ca3af] italic">Path not available</span>
+                          )}
+                        </span>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyStoragePath(audioPath, 'Audio files', 'audio')}
+                          disabled={!hasPath}
+                          className="w-full min-w-0 h-8 inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#d1d5db] bg-white px-2 text-xs font-semibold text-[#374151] hover:bg-[#eff6ff] hover:border-[#bfdbfe] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]/40 transition cursor-pointer disabled:opacity-50 dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-750"
+                        >
+                          {isCopied ? (
+                            <Check className="w-3.5 h-3.5 text-[#15803d] shrink-0" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5 text-[#6b7280] shrink-0" />
+                          )}
+                          <span className="truncate">{isCopied ? 'Copied' : 'Copy Path'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => openStorageFolder('recordings')}
+                          disabled={!hasPath}
+                          className="w-full min-w-0 h-8 inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#d1d5db] bg-white px-2 text-xs font-semibold text-[#374151] hover:bg-[#eff6ff] hover:border-[#bfdbfe] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]/40 transition cursor-pointer disabled:opacity-50 dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-750"
+                        >
+                          <FolderOpen className="w-3.5 h-3.5 text-[#2563eb] shrink-0" />
+                          <span className="truncate">Open Folder</span>
+                        </button>
+                      </div>
+
+                      {/* Spacer and Verify status row */}
+                      <div className="mt-auto pt-1 flex items-start gap-2 text-xs font-semibold min-w-0">
+                        {isVerifyingStorage ? (
+                          <div className="h-3.5 w-3/4 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse my-0.5" />
+                        ) : !hasPath ? (
+                          <>
+                            <span className="w-2 h-2 rounded-full mt-1 shrink-0 bg-[#dc2626]" />
+                            <span className="text-[#dc2626] line-clamp-2">Path does not exist</span>
+                          </>
+                        ) : isEmpty ? (
+                          <>
+                            <span className="w-2 h-2 rounded-full mt-1 shrink-0 bg-[#d97706]" />
+                            <span className="text-[#b45309] dark:text-amber-400 line-clamp-2">
+                              Directory exists but is empty
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="w-2 h-2 rounded-full mt-1 shrink-0 bg-[#16a34a]" />
+                            <span className="text-[#15803d] dark:text-emerald-400 line-clamp-2">
+                              Data verified: {filesCount} files ({storageStats?.audioStorageFormatted || '0 B'})
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <PathBox
-                      path={storageStats?.realUploadsPath || settings?.storagePath || '/Users/muhammedshraeef/Movies/minomeet-recordings'}
-                      onCopy={() => handleCopyPath(storageStats?.realUploadsPath || settings?.storagePath || '/Users/muhammedshraeef/Movies/minomeet-recordings', 'Audio files')}
-                      onOpen={() => openStorageFolder('recordings')}
-                    />
-                  </div>
-                  <div className="text-[10px] font-bold text-[#15803d] flex items-center gap-1 pt-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#16a34a]" />
-                    <span>Data verified: {storageStats?.audioFilesCount || 0} files ({storageStats?.audioStorageFormatted || '0 B'})</span>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* 2. AI Model Weights Folder */}
-                <div className="p-3.5 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] flex flex-col justify-between space-y-2.5">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#111827] flex items-center gap-1.5">
-                        <Cpu className="w-3.5 h-3.5 text-[#2563eb]" />
-                        <span>AI Models</span>
-                      </span>
-                      <span className="text-[10px] font-bold text-[#1e3a8a] bg-[#eff6ff] px-2 py-0.5 rounded border border-[#bfdbfe]">
-                        {storageStats?.modelsStorageFormatted || '0 B'}
-                      </span>
+                {(() => {
+                  const modelsPath = storageStats?.realModelsPath || '/Users/muhammedshraeef/Library/Application Support/ai.minomeet.desktop/models';
+                  const hasPath = Boolean(modelsPath && modelsPath.trim());
+                  const isCopied = copiedStorageKey === 'models';
+                  const modelsCount = storageStats?.modelsCount ?? 0;
+                  const isEmpty = modelsCount === 0;
+
+                  return (
+                    <div className="flex flex-col h-full rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] p-4 gap-3 overflow-hidden min-w-0 dark:border-neutral-800 dark:bg-neutral-850">
+                      {/* Header row */}
+                      <div className="flex items-center justify-between gap-2 min-w-0">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Cpu className="w-4 h-4 text-[#2563eb] shrink-0" />
+                          <span className="text-sm font-bold text-[#111827] dark:text-neutral-100 truncate">
+                            AI Models
+                          </span>
+                        </div>
+                        <span className="shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold text-[#1e3a8a] bg-[#eff6ff] border border-[#bfdbfe] dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800">
+                          {storageStats?.modelsStorageFormatted || '0 B'}
+                        </span>
+                      </div>
+
+                      {/* Path box */}
+                      <div
+                        className="rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 min-w-0 dark:border-neutral-800 dark:bg-neutral-900"
+                        title={hasPath ? modelsPath : undefined}
+                      >
+                        <span className="block font-mono text-[11px] text-[#4b5563] break-all line-clamp-2 dark:text-neutral-300">
+                          {hasPath ? (
+                            modelsPath
+                          ) : (
+                            <span className="text-[#9ca3af] italic">Path not available</span>
+                          )}
+                        </span>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyStoragePath(modelsPath, 'AI models', 'models')}
+                          disabled={!hasPath}
+                          className="w-full min-w-0 h-8 inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#d1d5db] bg-white px-2 text-xs font-semibold text-[#374151] hover:bg-[#eff6ff] hover:border-[#bfdbfe] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]/40 transition cursor-pointer disabled:opacity-50 dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-750"
+                        >
+                          {isCopied ? (
+                            <Check className="w-3.5 h-3.5 text-[#15803d] shrink-0" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5 text-[#6b7280] shrink-0" />
+                          )}
+                          <span className="truncate">{isCopied ? 'Copied' : 'Copy Path'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => openStorageFolder('models')}
+                          disabled={!hasPath}
+                          className="w-full min-w-0 h-8 inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#d1d5db] bg-white px-2 text-xs font-semibold text-[#374151] hover:bg-[#eff6ff] hover:border-[#bfdbfe] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]/40 transition cursor-pointer disabled:opacity-50 dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-750"
+                        >
+                          <FolderOpen className="w-3.5 h-3.5 text-[#2563eb] shrink-0" />
+                          <span className="truncate">Open Folder</span>
+                        </button>
+                      </div>
+
+                      {/* Spacer and Verify status row */}
+                      <div className="mt-auto pt-1 flex items-start gap-2 text-xs font-semibold min-w-0">
+                        {isVerifyingStorage ? (
+                          <div className="h-3.5 w-3/4 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse my-0.5" />
+                        ) : !hasPath ? (
+                          <>
+                            <span className="w-2 h-2 rounded-full mt-1 shrink-0 bg-[#dc2626]" />
+                            <span className="text-[#dc2626] line-clamp-2">Path does not exist</span>
+                          </>
+                        ) : isEmpty ? (
+                          <>
+                            <span className="w-2 h-2 rounded-full mt-1 shrink-0 bg-[#d97706]" />
+                            <span className="text-[#b45309] dark:text-amber-400 line-clamp-2">
+                              Directory exists but is empty
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="w-2 h-2 rounded-full mt-1 shrink-0 bg-[#16a34a]" />
+                            <span className="text-[#15803d] dark:text-emerald-400 line-clamp-2">
+                              Data verified: {modelsCount} models ({storageStats?.modelsStorageFormatted || '0 B'})
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <PathBox
-                      path={storageStats?.realModelsPath || '/Users/muhammedshraeef/Library/Application Support/ai.minomeet.desktop/models'}
-                      onCopy={() => handleCopyPath(storageStats?.realModelsPath || '/Users/muhammedshraeef/Library/Application Support/ai.minomeet.desktop/models', 'AI models')}
-                      onOpen={() => openStorageFolder('models')}
-                    />
-                  </div>
-                  <div className="text-[10px] font-bold text-[#15803d] flex items-center gap-1 pt-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#16a34a]" />
-                    <span>Data verified: {storageStats?.modelsCount || 0} models ({storageStats?.modelsStorageFormatted || '0 B'})</span>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* 3. Database Folder */}
-                <div className="p-3.5 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] flex flex-col justify-between space-y-2.5">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#111827] flex items-center gap-1.5">
-                        <Database className="w-3.5 h-3.5 text-[#2563eb]" />
-                        <span>Database (JSON)</span>
-                      </span>
-                      <span className="text-[10px] font-bold text-[#15803d] bg-[#dcfce7] px-2 py-0.5 rounded border border-[#86efac]">
-                        {storageStats?.dbSizeFormatted || '120 KB'}
-                      </span>
+                {(() => {
+                  const dataPath = storageStats?.realDataPath || '/Users/muhammedshraeef/Library/Application Support/ai.minomeet.desktop/meeting_minutes.sqlite';
+                  const hasPath = Boolean(dataPath && dataPath.trim());
+                  const isCopied = copiedStorageKey === 'database';
+
+                  return (
+                    <div className="flex flex-col h-full rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] p-4 gap-3 overflow-hidden min-w-0 dark:border-neutral-800 dark:bg-neutral-850">
+                      {/* Header row */}
+                      <div className="flex items-center justify-between gap-2 min-w-0">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Database className="w-4 h-4 text-[#2563eb] shrink-0" />
+                          <span className="text-sm font-bold text-[#111827] dark:text-neutral-100 truncate">
+                            Database (JSON)
+                          </span>
+                        </div>
+                        <span className="shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold text-[#15803d] bg-[#dcfce7] border border-[#86efac] dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800">
+                          {storageStats?.dbSizeFormatted || '120 KB'}
+                        </span>
+                      </div>
+
+                      {/* Path box */}
+                      <div
+                        className="rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 min-w-0 dark:border-neutral-800 dark:bg-neutral-900"
+                        title={hasPath ? dataPath : undefined}
+                      >
+                        <span className="block font-mono text-[11px] text-[#4b5563] break-all line-clamp-2 dark:text-neutral-300">
+                          {hasPath ? (
+                            dataPath
+                          ) : (
+                            <span className="text-[#9ca3af] italic">Path not available</span>
+                          )}
+                        </span>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyStoragePath(dataPath, 'Database', 'database')}
+                          disabled={!hasPath}
+                          className="w-full min-w-0 h-8 inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#d1d5db] bg-white px-2 text-xs font-semibold text-[#374151] hover:bg-[#eff6ff] hover:border-[#bfdbfe] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]/40 transition cursor-pointer disabled:opacity-50 dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-750"
+                        >
+                          {isCopied ? (
+                            <Check className="w-3.5 h-3.5 text-[#15803d] shrink-0" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5 text-[#6b7280] shrink-0" />
+                          )}
+                          <span className="truncate">{isCopied ? 'Copied' : 'Copy Path'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => openStorageFolder('data')}
+                          disabled={!hasPath}
+                          className="w-full min-w-0 h-8 inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#d1d5db] bg-white px-2 text-xs font-semibold text-[#374151] hover:bg-[#eff6ff] hover:border-[#bfdbfe] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]/40 transition cursor-pointer disabled:opacity-50 dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-750"
+                        >
+                          <FolderOpen className="w-3.5 h-3.5 text-[#2563eb] shrink-0" />
+                          <span className="truncate">Open Folder</span>
+                        </button>
+                      </div>
+
+                      {/* Spacer and Verify status row */}
+                      <div className="mt-auto pt-1 flex items-start gap-2 text-xs font-semibold min-w-0">
+                        {isVerifyingStorage ? (
+                          <div className="h-3.5 w-3/4 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse my-0.5" />
+                        ) : !hasPath ? (
+                          <>
+                            <span className="w-2 h-2 rounded-full mt-1 shrink-0 bg-[#dc2626]" />
+                            <span className="text-[#dc2626] line-clamp-2">Path does not exist</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="w-2 h-2 rounded-full mt-1 shrink-0 bg-[#16a34a]" />
+                            <span className="text-[#15803d] dark:text-emerald-400 line-clamp-2">
+                              Data verified: 1 database ({storageStats?.dbSizeFormatted || '120 KB'})
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <PathBox
-                      path={storageStats?.realDataPath || '/Users/muhammedshraeef/Library/Application Support/ai.minomeet.desktop/meeting_minutes.sqlite'}
-                      onCopy={() => handleCopyPath(storageStats?.realDataPath || '/Users/muhammedshraeef/Library/Application Support/ai.minomeet.desktop/meeting_minutes.sqlite', 'Database')}
-                      onOpen={() => openStorageFolder('data')}
-                    />
-                  </div>
-                  <div className="text-[10px] font-bold text-[#15803d] flex items-center gap-1 pt-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#16a34a]" />
-                    <span>Data verified: 1 database ({storageStats?.dbSizeFormatted || '120 KB'})</span>
-                  </div>
-                </div>
+                  );
+                })()}
               </div>
 
               {/* Privacy Notice */}
-              <div className="p-3 rounded-xl bg-[#eff6ff] border border-[#bfdbfe] flex items-start gap-2.5 text-xs text-[#1e3a8a]">
-                <ShieldCheck className="w-4 h-4 flex-none mt-0.5 text-[#2563eb]" />
+              <div className="mt-4 flex items-start gap-3 rounded-xl border border-[#bfdbfe] bg-[#eff6ff] p-3.5 text-xs text-[#1e3a8a] leading-relaxed dark:bg-blue-950/30 dark:border-blue-900 dark:text-blue-200">
+                <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-[#2563eb]" />
                 <p>
-                  <b>100% Privacy Guarantee:</b> Your voice recordings, transcripts, and AI models are stored strictly on this device and are never uploaded to any cloud server.
+                  <b className="font-bold">100% Privacy Guarantee:</b> Your voice recordings, transcripts, and AI models are stored strictly on this device and are never uploaded to any cloud server.
                 </p>
               </div>
             </div>
@@ -3309,15 +4142,22 @@ if (!settings) return null;
 
       </div>
 
-      {/* Interactive Template Modal (Create / Edit) */}
+      {/* Interactive Template Modal (Create / Edit with Section Builder & Live Mini Preview) */}
       {isTemplateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-[#e5e7eb] space-y-4 animate-scale-in">
-            <div className="flex items-center justify-between pb-3 border-b border-[#f3f4f6]">
-              <h3 className="text-sm font-bold text-[#111827] flex items-center gap-2">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5">
+          <div className="bg-white rounded-2xl max-w-4xl w-full p-5 sm:p-6 shadow-2xl border border-[#e5e7eb] space-y-4 animate-scale-in max-h-[92vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#f3f4f6] flex-none">
+              <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-[#2563eb]" />
-                <span>{editingTemplateId ? 'Edit MOM Template' : 'Create Custom MOM Template'}</span>
-              </h3>
+                <h3 className="text-sm font-bold text-[#111827]">
+                  {isCopyingBuiltIn
+                    ? `Copy & Edit: ${formName.replace(' (Copy)', '')}`
+                    : editingTemplateId
+                    ? `Edit Template: ${formName}`
+                    : 'Create MOM Template'}
+                </h3>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsTemplateModalOpen(false)}
@@ -3327,105 +4167,357 @@ if (!settings) return null;
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-[#374151] mb-1">Template Name</label>
-                <input
-                  type="text"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  placeholder="e.g., Executive &amp; Board Summary"
-                  className="w-full h-9 px-3 rounded-xl border border-[#e5e7eb] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 outline-none"
-                />
-              </div>
+            {/* Modal Body: 2 Columns on desktop (Form + Live Mini Preview) */}
+            <div className="flex-1 overflow-y-auto no-scrollbar grid grid-cols-1 lg:grid-cols-12 gap-5 text-xs pr-1">
+              {/* Left Column: Form (7 cols) */}
+              <div className="lg:col-span-7 space-y-4">
+                {isCopyingBuiltIn && (
+                  <div className="p-3 rounded-xl bg-[#eff6ff] border border-[#bfdbfe] text-[#1e40af] flex items-start gap-2">
+                    <Info className="w-4 h-4 flex-none mt-0.5" />
+                    <div>
+                      <div className="font-bold">Editing a copy of a built-in template</div>
+                      <p className="text-[11px] text-[#3b82f6] mt-0.5">
+                        Built-in templates are read-only. Your changes will be saved as a new custom template.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
-              <div>
-                <label className="block font-bold text-[#374151] mb-1">Category</label>
-                <select
-                  value={formCategory}
-                  onChange={(e) => setFormCategory(e.target.value)}
-                  className="w-full h-9 px-3 rounded-xl border border-[#e5e7eb] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 outline-none cursor-pointer"
-                >
-                  <option value="General &amp; Operations">General &amp; Operations</option>
-                  <option value="Leadership &amp; Strategy">Leadership &amp; Strategy</option>
-                  <option value="Agile &amp; Development">Agile &amp; Development</option>
-                  <option value="Commercial &amp; Sales">Commercial &amp; Sales</option>
-                  <option value="Product &amp; UX">Product &amp; UX</option>
-                  <option value="Project Management">Project Management</option>
-                  <option value="Custom">Custom Category</option>
-                </select>
-              </div>
+                {formError && (
+                  <div className="p-3 rounded-xl bg-[#fef2f2] border border-[#fecaca] text-[#dc2626] flex items-center gap-2 font-medium">
+                    <AlertCircle className="w-4 h-4 flex-none" />
+                    <span>{formError}</span>
+                  </div>
+                )}
 
-              <div>
-                <label className="block font-bold text-[#374151] mb-1">Description</label>
-                <textarea
-                  value={formDescription}
-                  onChange={(e) => setFormDescription(e.target.value)}
-                  rows={2}
-                  placeholder="Short description of this template purpose..."
-                  className="w-full p-2.5 rounded-xl border border-[#e5e7eb] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 outline-none"
-                />
-              </div>
+                {/* Name & Category Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-[#374151] mb-1">
+                      Template Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formName}
+                      maxLength={80}
+                      onChange={(e) => {
+                        setFormName(e.target.value);
+                        if (formError) setFormError(null);
+                      }}
+                      placeholder="e.g., Leadership Sync"
+                      className="w-full h-9 px-3 rounded-xl border border-[#e5e7eb] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 outline-none text-xs"
+                    />
+                  </div>
 
-              <div>
-                <label className="block font-bold text-[#374151] mb-1">Report Sections</label>
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {formSections.map((sec, idx) => (
-                    <span
-                      key={idx}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#eff6ff] border border-[#bfdbfe] text-[#1e3a8a] text-[11px] font-medium"
+                  <div>
+                    <label className="block font-bold text-[#374151] mb-1">Category</label>
+                    <select
+                      value={formCategory}
+                      onChange={(e) => setFormCategory(e.target.value)}
+                      className="w-full h-9 px-3 rounded-xl border border-[#e5e7eb] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 outline-none cursor-pointer text-xs bg-white"
                     >
-                      <span>{sec}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSection(idx)}
-                        className="hover:text-[#dc2626]"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
+                      <option value="Standard">Standard</option>
+                      <option value="Executive">Executive</option>
+                      <option value="Engineering">Engineering</option>
+                      <option value="Commercial & Sales">Commercial & Sales</option>
+                      <option value="Product & UX">Product & UX</option>
+                      <option value="General">General</option>
+                      <option value="Custom">Custom</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newSectionInput}
-                    onChange={(e) => setNewSectionInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        if (newSectionInput.trim()) {
-                          setFormSections([...formSections, newSectionInput.trim()]);
-                          setNewSectionInput('');
-                        }
-                      }
-                    }}
-                    placeholder="Add section title and press Enter"
-                    className="flex-1 h-9 px-3 rounded-xl border border-[#e5e7eb] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 outline-none"
+
+                {/* Description */}
+                <div>
+                  <label className="block font-bold text-[#374151] mb-1">Description</label>
+                  <textarea
+                    value={formDescription}
+                    maxLength={200}
+                    onChange={(e) => setFormDescription(e.target.value)}
+                    rows={2}
+                    placeholder="Short description of this template's purpose and meeting context..."
+                    className="w-full p-2.5 rounded-xl border border-[#e5e7eb] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 outline-none text-xs"
                   />
-                  <button
-                    type="button"
-                    onClick={handleAddSection}
-                    className="px-3.5 py-1.5 rounded-xl bg-white border border-[#d1d5db] text-[#374151] hover:bg-[#eff6ff] hover:text-[#2563eb] font-bold"
-                  >
-                    Add
-                  </button>
+                </div>
+
+                {/* Accent Color Swatches */}
+                <div>
+                  <label className="block font-bold text-[#374151] mb-1.5">Accent Color</label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {[
+                      { name: 'Blue', color: '#2563eb' },
+                      { name: 'Purple', color: '#7c3aed' },
+                      { name: 'Emerald', color: '#059669' },
+                      { name: 'Amber', color: '#d97706' },
+                      { name: 'Rose', color: '#e11d48' },
+                      { name: 'Cyan', color: '#0891b2' },
+                      { name: 'Slate', color: '#475569' },
+                      { name: 'Indigo', color: '#4f46e5' }
+                    ].map(sw => (
+                      <button
+                        key={sw.color}
+                        type="button"
+                        onClick={() => setFormAccentColor(sw.color)}
+                        className={`w-7 h-7 rounded-full flex items-center justify-center transition cursor-pointer ${
+                          formAccentColor === sw.color ? 'ring-2 ring-offset-2 ring-[#2563eb] scale-110' : 'hover:scale-105'
+                        }`}
+                        style={{ backgroundColor: sw.color }}
+                        title={sw.name}
+                      >
+                        {formAccentColor === sw.color && <Check className="w-3.5 h-3.5 text-white" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Section Builder */}
+                <div className="space-y-2 pt-2 border-t border-[#f3f4f6]">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="block font-bold text-[#374151]">
+                        Report Sections ({formSectionsList.length}/10) <span className="text-red-500">*</span>
+                      </label>
+                      <p className="text-[11px] text-[#6b7280]">
+                        Define the structure and format of your meeting notes.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddSection}
+                      disabled={formSectionsList.length >= 10}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-[#eff6ff] hover:bg-[#dbeafe] text-[#1e40af] text-xs font-bold transition cursor-pointer disabled:opacity-40"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Section</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-2.5 max-h-64 overflow-y-auto no-scrollbar pr-1">
+                    {formSectionsList.map((sec, idx) => (
+                      <div
+                        key={idx}
+                        className="p-2.5 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] space-y-2"
+                      >
+                        <div className="flex items-center gap-2">
+                          {/* Reorder Buttons */}
+                          <div className="flex flex-col gap-0.5">
+                            <button
+                              type="button"
+                              onClick={() => handleMoveSection(idx, 'up')}
+                              disabled={idx === 0}
+                              className="p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-20 cursor-pointer"
+                              title="Move section up"
+                            >
+                              <ChevronUp className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveSection(idx, 'down')}
+                              disabled={idx === formSectionsList.length - 1}
+                              className="p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-20 cursor-pointer"
+                              title="Move section down"
+                            >
+                              <ChevronDown className="w-3 h-3" />
+                            </button>
+                          </div>
+
+                          {/* Section Name Input */}
+                          <input
+                            type="text"
+                            value={sec.name}
+                            onChange={(e) => handleUpdateSectionName(idx, e.target.value)}
+                            placeholder="Section Name"
+                            className="flex-1 h-8 px-2.5 rounded-lg border border-[#d1d5db] bg-white focus:border-[#2563eb] text-xs font-bold text-[#111827] outline-none"
+                          />
+
+                          {/* Section Type Selector */}
+                          <select
+                            value={sec.type || 'bullets'}
+                            onChange={(e) => handleUpdateSectionType(idx, e.target.value as MOMSectionType)}
+                            className="h-8 px-2 rounded-lg border border-[#d1d5db] bg-white text-xs text-[#374151] font-medium outline-none cursor-pointer"
+                          >
+                            <option value="text">Text Paragraph</option>
+                            <option value="bullets">Bullet List</option>
+                            <option value="table">Table Matrix</option>
+                            <option value="numbered">Numbered List</option>
+                          </select>
+
+                          {/* Remove Section Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSection(idx)}
+                            disabled={formSectionsList.length <= 1}
+                            className="p-1 rounded-lg text-gray-400 hover:text-red-500 transition cursor-pointer disabled:opacity-30"
+                            title="Remove section"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Table Columns Editor if section type is table */}
+                        {sec.type === 'table' && (
+                          <div className="pl-6 pt-1 space-y-1.5 border-t border-[#e5e7eb]/80">
+                            <div className="text-[10.5px] font-bold text-[#15803d] uppercase tracking-wider flex items-center gap-1">
+                              <Table className="w-3 h-3 text-[#15803d]" />
+                              <span>Table Columns:</span>
+                            </div>
+
+                            <div className="flex flex-wrap gap-1.5 items-center">
+                              {(sec.columns || []).map((col, cIdx) => (
+                                <span
+                                  key={cIdx}
+                                  className="inline-flex items-center gap-1 bg-[#dcfce7] border border-[#86efac] text-[#15803d] px-2 py-0.5 rounded-md font-mono text-[10px] font-bold"
+                                >
+                                  <span>{col}</span>
+                                  {(sec.columns || []).length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveColumn(idx, cIdx)}
+                                      className="hover:text-red-600"
+                                    >
+                                      <X className="w-2.5 h-2.5" />
+                                    </button>
+                                  )}
+                                </span>
+                              ))}
+
+                              {/* Add Column Input */}
+                              <div className="inline-flex items-center gap-1">
+                                <input
+                                  type="text"
+                                  value={newColumnInputs[idx] || ''}
+                                  onChange={(e) => setNewColumnInputs(prev => ({ ...prev, [idx]: e.target.value }))}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      handleAddColumn(idx);
+                                    }
+                                  }}
+                                  placeholder="+ Add column"
+                                  className="h-6 px-2 w-24 text-[10px] rounded-md border border-[#cbd5e1] bg-white outline-none font-mono"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddColumn(idx)}
+                                  className="h-6 px-1.5 bg-[#f1f5f9] hover:bg-[#e2e8f0] text-[#334155] rounded-md text-[10px] font-bold cursor-pointer"
+                                >
+                                  Add
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <p className="text-[11px] text-[#6b7280] italic pt-0.5">
+                    Tip: Add a &ldquo;Key Decisions&rdquo; section for decision tracking, or an &ldquo;Action Items&rdquo; section with Owner/Task/Due columns.
+                  </p>
+                </div>
+
+                {/* Prompt Instructions */}
+                <div>
+                  <label className="block font-bold text-[#374151] mb-1">AI Prompt Instructions (Optional)</label>
+                  <textarea
+                    value={formPromptInstructions}
+                    maxLength={500}
+                    onChange={(e) => setFormPromptInstructions(e.target.value)}
+                    rows={2}
+                    placeholder="Instructions directing local AI models on formatting, emphasis, or domain focus..."
+                    className="w-full p-2.5 rounded-xl border border-[#e5e7eb] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 outline-none font-mono text-[11px]"
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-[#374151] mb-1">AI Prompt Instructions</label>
-                <textarea
-                  value={formPromptInstructions}
-                  onChange={(e) => setFormPromptInstructions(e.target.value)}
-                  rows={3}
-                  placeholder="System instructions directing local AI models on formatting and summarizing..."
-                  className="w-full p-2.5 rounded-xl border border-[#e5e7eb] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 outline-none font-mono text-[11px]"
-                />
+              {/* Right Column: Live Mini Preview Panel (5 cols) */}
+              <div className="lg:col-span-5 bg-[#f8fafc] border border-[#e2e8f0] rounded-2xl p-4 flex flex-col justify-between space-y-3">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-[#e2e8f0]">
+                    <span className="font-bold text-[11px] text-[#475569] uppercase tracking-wider flex items-center gap-1.5">
+                      <Eye className="w-3.5 h-3.5 text-[#2563eb]" />
+                      <span>Live Mini Preview</span>
+                    </span>
+                    <span className="text-[10px] text-[#64748b]">A4 Document Layout</span>
+                  </div>
+
+                  {/* Scaled Preview Card */}
+                  <div className="bg-white border border-[#cbd5e1] rounded-xl p-3.5 shadow-xs space-y-2.5 relative overflow-hidden">
+                    {/* Top colored accent line */}
+                    <div
+                      className="absolute top-0 left-0 right-0 h-1.5"
+                      style={{ backgroundColor: formAccentColor }}
+                    />
+
+                    {/* Header */}
+                    <div className="pt-1">
+                      <div className="text-[9px] font-bold uppercase tracking-widest text-[#64748b]">
+                        Minutes of Meeting
+                      </div>
+                      <div className="font-black text-sm text-[#0f172a] truncate">
+                        {formName.trim() || 'Untitled Template'}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[9.5px] text-[#64748b] mt-0.5">
+                        <span className="px-1.5 py-0.2 rounded font-semibold bg-[#f1f5f9] text-[#334155]">
+                          {formCategory}
+                        </span>
+                        <span>&bull;</span>
+                        <span>Sample Date &bull; 45 mins</span>
+                      </div>
+                    </div>
+
+                    {/* Simulated Sections Outline */}
+                    <div className="space-y-2 pt-1 border-t border-[#f1f5f9]">
+                      {formSectionsList.map((sec, idx) => (
+                        <div key={idx} className="space-y-1">
+                          <div
+                            className="text-[10px] font-bold uppercase tracking-wider pl-1.5"
+                            style={{ borderLeft: `2.5px solid ${formAccentColor}` }}
+                          >
+                            {sec.name || `Section ${idx + 1}`}
+                          </div>
+                          {sec.type === 'table' ? (
+                            <div className="bg-[#f8fafc] border border-[#e2e8f0] rounded p-1.5 text-[9px] font-mono text-[#64748b]">
+                              [Table: {(sec.columns || ['Owner', 'Task', 'Due Date']).join(' | ')}]
+                            </div>
+                          ) : sec.type === 'numbered' ? (
+                            <div className="text-[9.5px] text-[#475569] space-y-0.5 pl-3">
+                              <div>1. Key objective ratified by participants</div>
+                              <div>2. Follow-up milestones established</div>
+                            </div>
+                          ) : sec.type === 'text' ? (
+                            <div className="text-[9.5px] text-[#64748b] leading-tight">
+                              Structured paragraph summarizing discussions, contextual objectives, and outcomes.
+                            </div>
+                          ) : (
+                            <div className="text-[9.5px] text-[#475569] space-y-0.5 pl-2">
+                              <div>&bull; Deliverable alignment and sprint goals</div>
+                              <div>&bull; Cross-functional dependency review</div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="text-[9px] text-[#94a3b8] text-center pt-1 border-t border-[#f1f5f9]">
+                      Generated by Minomeet AI &bull; {formName.trim() || 'Custom MOM'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-[10.5px] text-[#64748b] bg-white p-2.5 rounded-xl border border-[#e2e8f0] space-y-1">
+                  <div className="font-semibold text-[#1e293b]">Template Design Rules</div>
+                  <ul className="list-disc pl-4 space-y-0.5 text-[10px]">
+                    <li>Minimum 1 section, maximum 10 sections.</li>
+                    <li>Table sections automatically format into structured tabular grids.</li>
+                    <li>Decision sections automatically receive sequential [D-01] tracking tags.</li>
+                  </ul>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#f3f4f6]">
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#f3f4f6] flex-none">
               <button
                 type="button"
                 onClick={() => setIsTemplateModalOpen(false)}
@@ -3445,59 +4537,74 @@ if (!settings) return null;
         </div>
       )}
 
-      {/* Preview Example Doc Modal */}
+      {/* A4 Document Preview Modal (Step 3: Real MOM Preview) */}
       {previewDocTemplate && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-xl border border-[#e5e7eb] space-y-4 animate-scale-in max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-[#f3f4f6]">
-              <div className="flex items-center gap-2">
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl border border-[#e5e7eb] space-y-4 animate-scale-in max-h-[88vh] flex flex-col">
+            {/* Modal Top Bar */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#f3f4f6] flex-none">
+              <div className="flex items-center gap-2 min-w-0">
                 <FileText className="w-4 h-4 text-[#2563eb]" />
-                <h3 className="text-sm font-bold text-[#111827]">
-                  Preview Sample MOM: {previewDocTemplate.name}
+                <h3 className="text-sm font-bold text-[#111827] truncate">
+                  Preview: {previewDocTemplate.name}
                 </h3>
+                <span className="bg-[#eff6ff] text-[#1e40af] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[#bfdbfe] flex-none">
+                  {previewDocTemplate.category}
+                </span>
               </div>
+
+              {/* Top Bar Action Buttons */}
+              <div className="flex items-center gap-2 flex-none">
+                <button
+                  type="button"
+                  onClick={() => printMomDocument(previewDocTemplate)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#d1d5db] bg-white text-[#374151] hover:bg-[#eff6ff] hover:text-[#2563eb] text-xs font-bold transition shadow-xs cursor-pointer"
+                  title="Open real browser print preview for this document"
+                >
+                  <Printer className="w-3.5 h-3.5 text-[#2563eb]" />
+                  <span>Print Preview</span>
+                </button>
+
+                {settings.defaultTemplateId !== previewDocTemplate.id && settings.defaultTemplate !== previewDocTemplate.name && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDefaultTemplate(previewDocTemplate.id);
+                      setPreviewDocTemplate(null);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                  >
+                    Use This Template
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setPreviewDocTemplate(null)}
+                  className="p-1 rounded-lg text-[#6b7280] hover:text-[#111827] hover:bg-[#f3f4f6] transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* A4 Realistic Document Body */}
+            <div className="flex-1 overflow-y-auto no-scrollbar py-4 px-2 bg-[#f8fafc] rounded-xl flex justify-center">
+              <div
+                className="w-full flex justify-center"
+                dangerouslySetInnerHTML={{
+                  __html: renderMomDocumentHtml(previewDocTemplate, previewDocTemplate.sampleDocument, { embedBodyOnly: true })
+                }}
+              />
+            </div>
+
+            {/* Modal Bottom Sign-off */}
+            <div className="flex items-center justify-between pt-2 border-t border-[#f3f4f6] text-[11px] text-[#6b7280] flex-none">
+              <span>Simulated with canonical sample data &bull; 100% on-device layout</span>
               <button
                 type="button"
                 onClick={() => setPreviewDocTemplate(null)}
-                className="p-1 rounded-lg text-[#6b7280] hover:text-[#111827] hover:bg-[#f3f4f6] transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto no-scrollbar space-y-3.5 text-xs text-[#374151] pr-1">
-              <div className="p-3 bg-[#eff6ff] rounded-xl border border-[#bfdbfe] flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-[#1e3a8a]">{previewDocTemplate.name}</div>
-                  <div className="text-[11px] text-[#6b7280]">{previewDocTemplate.category} &bull; Simulated Synthesis Output</div>
-                </div>
-                <StatusBadge tone="info">Document Spec v1.2</StatusBadge>
-              </div>
-
-              {previewDocTemplate.sections.map((sec, idx) => (
-                <div key={idx} className="p-3 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] space-y-1.5">
-                  <h5 className="font-bold text-xs text-[#111827] flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#2563eb]" />
-                    <span>{sec}</span>
-                  </h5>
-                  <p className="text-[11px] text-[#4b5563] leading-relaxed">
-                    {sec.toLowerCase().includes('action') ? (
-                      'Tabular matrix of deliverables with assigned ownership, target sprint deadlines, and completion criteria.'
-                    ) : sec.toLowerCase().includes('decision') ? (
-                      'Consensus agreements, architecture approvals, and recorded trade-offs ratified during discussion.'
-                    ) : (
-                      'Structured synopsis distilling key conversation threads, stakeholder viewpoints, and contextual outcomes.'
-                    )}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex items-center justify-end pt-3 border-t border-[#f3f4f6]">
-              <button
-                type="button"
-                onClick={() => setPreviewDocTemplate(null)}
-                className="px-4 py-1.5 rounded-xl bg-[#2563eb] text-white text-xs font-bold hover:bg-[#1d4ed8] shadow-xs transition cursor-pointer"
+                className="px-4 py-1.5 rounded-xl bg-[#0f172a] text-white text-xs font-bold hover:bg-[#1e293b] shadow-xs transition cursor-pointer"
               >
                 Close Preview
               </button>

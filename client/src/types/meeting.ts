@@ -24,6 +24,9 @@ export interface MOMSummary {
   discussionHighlights: string[];
   nextSteps?: string[];
   template: string;
+  templateId?: string;
+  templateName?: string;
+  sectionsData?: Record<string, any>;
   language: string;
   modelUsed: string;
   generatedAt: string;
@@ -37,6 +40,10 @@ export interface Meeting {
   duration: string;
   transcript: TranscriptLine[];
   summary?: MOMSummary;
+  summaryStatus?: 'not_generated' | 'generating' | 'completed' | 'error';
+  templateId?: string;
+  templateName?: string;
+  sectionsData?: Record<string, any>;
   audioPath?: string;
   tags?: string[];
   isPinned?: boolean;
@@ -92,8 +99,17 @@ export interface AppSettings {
   liveCaptions: boolean;
   speakerLabels: boolean;
   autoSummary: boolean;
+  autoSummaryOnConclude?: boolean;
+  summaryComponents?: {
+    executiveSummary: boolean;
+    actionItems: boolean;
+    keyDecisions: boolean;
+  };
+  transcriptionLanguage?: string;
+  summaryLanguage?: string;
   defaultLanguage: string;
   defaultTemplate: string;
+  defaultTemplateId?: string;
   selectedModel: string;
   activeAIProvider?: string;
   aiProviders?: Record<string, ProviderCredential>;
@@ -165,15 +181,57 @@ export interface StorageStats {
   realDataPath: string;
 }
 
+export type MOMSectionType = 'text' | 'bullets' | 'table' | 'numbered';
+
+export interface MOMTemplateSection {
+  id?: string;
+  title?: string;
+  name?: string;
+  type: MOMSectionType;
+  columns?: string[];
+}
+
+export interface MOMSampleAttendee {
+  name: string;
+  role: string;
+  attendance: 'Present' | 'Absent' | 'Remote' | string;
+}
+
+export interface MOMSampleDocument {
+  meetingTitle?: string;
+  title?: string;
+  subtitle?: string;
+  date?: string;
+  duration?: string;
+  location?: string;
+  chair?: string;
+  preparedBy?: string;
+  aiModel?: string;
+  attendees?: Array<MOMSampleAttendee | { name: string; role: string; attendance: string }>;
+  agenda?: string[];
+  sectionsData?: Record<string, any>;
+  sections?: Record<string, any>;
+  metadata?: Record<string, string>;
+  docId?: string;
+  status?: string;
+  nextMeeting?: string;
+  distribution?: string;
+  approvedBy?: string;
+  signoff?: string;
+}
+
 export interface MOMTemplate {
   id: string;
   name: string;
   category: string;
   description: string;
-  sections: string[];
+  icon?: string;
+  accentColor?: string;
+  sections: (MOMTemplateSection | string)[];
   tableColumns?: string[];
   promptInstructions: string;
-  sampleDocument?: string;
+  sampleDocument?: MOMSampleDocument | string;
+  isBuiltIn?: boolean;
   isDefault?: boolean;
   isSystem?: boolean;
   createdAt?: string;
@@ -216,5 +274,29 @@ export interface AskQuestionResponse {
   suggestedFollowUps?: string[];
   modelUsed?: string;
 }
+
+export interface LanguageOption {
+  code: string;
+  label: string;
+}
+
+export const TRANSCRIPTION_LANGUAGES: LanguageOption[] = [
+  { code: 'en', label: 'English' },
+  { code: 'auto', label: 'Auto-detect' }
+];
+
+export const ALLOWED_TRANSCRIPTION_LANGUAGES: string[] = [
+  'en', 'auto', 'es', 'fr', 'de', 'pt', 'it', 'hi', 'ta', 'te', 'ml', 'kn', 'ja', 'ko', 'zh', 'ar'
+];
+
+export const SUMMARY_LANGUAGES: LanguageOption[] = [
+  { code: 'en', label: 'English' },
+  { code: 'auto', label: 'Auto-detect' }
+];
+
+export const ALLOWED_SUMMARY_LANGUAGES: string[] = [
+  'en', 'auto', 'same', 'es', 'fr', 'de', 'pt', 'it', 'hi', 'ta', 'te', 'ml', 'kn', 'ja', 'ko', 'zh', 'ar'
+];
+
 
 
