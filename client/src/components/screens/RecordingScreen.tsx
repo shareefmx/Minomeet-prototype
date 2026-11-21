@@ -70,10 +70,10 @@ export const RecordingScreen: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col h-full relative overflow-hidden bg-white text-[#111827]">
       {/* Top Header Bar */}
-      <div className="flex items-center justify-between px-6 py-3.5 border-b border-[#e5e7eb] bg-[#fdfdfe] flex-wrap gap-2">
+      <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-[#e5e7eb] bg-[#fdfdfe] flex-wrap gap-2 flex-none">
         {/* Status Pill */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-[#f9fafb] border border-[#e5e7eb] px-3.5 py-1.5 rounded-full text-xs font-bold text-[#374151] shadow-inner">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <div className="flex items-center gap-2 bg-[#f9fafb] border border-[#e5e7eb] px-3 sm:px-3.5 py-1.5 rounded-full text-xs font-bold text-[#374151] shadow-inner">
             <span className={`w-2.5 h-2.5 rounded-full bg-[#e2564c] ${isPaused ? 'opacity-40' : 'animate-pulse'}`} />
             <span>{isPaused ? 'Paused' : 'Recording'} &bull; {formatTimer(recordingTimer)}</span>
           </div>
@@ -195,7 +195,7 @@ export const RecordingScreen: React.FC = () => {
       )}
 
       {/* Live Transcript Stream Container */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-6 space-y-3 pb-28">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6 space-y-3 pb-36 sm:pb-28 no-scrollbar">
         {liveTranscript.length === 0 && !interimTranscript ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-20">
             <div className="flex items-center gap-2 text-sm text-[#9aa2af] font-medium animate-pulse">
@@ -218,7 +218,7 @@ export const RecordingScreen: React.FC = () => {
                 </span>
                 <div className="flex-1">
                   {line.speaker && (
-                    <span className={`inline-flex items-center gap-1 font-extrabold mr-2 text-[11px] uppercase tracking-wide px-2 py-0.5 rounded-md shadow-2xs ${getSpeakerBadgeStyle(line.speaker)}`}>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded mr-1.5 ${getSpeakerBadgeStyle(line.speaker)}`}>
                       {line.speaker}
                     </span>
                   )}
@@ -241,9 +241,6 @@ export const RecordingScreen: React.FC = () => {
                   Live
                 </span>
                 <div className="flex-1">
-                  <span className="font-bold text-[#15803d] mr-2 text-[11px] uppercase tracking-wide bg-[#dcfce7] px-2 py-0.5 rounded border border-[#86efac]">
-                    Speaking
-                  </span>
                   <span className="text-[#14532d] font-medium">
                     {interimTranscript}
                   </span>
@@ -263,11 +260,11 @@ export const RecordingScreen: React.FC = () => {
       </div>
 
       {/* Floating Bottom Recording Control Bar */}
-      <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-white/95 backdrop-blur-md rounded-full shadow-2xl border border-[#d6dbe2] flex items-center gap-3.5 px-4 py-2 z-30">
+      <div className="absolute bottom-4 sm:bottom-6 left-1/2 transform -translate-x-1/2 bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-full shadow-2xl border border-[#d6dbe2] flex flex-wrap items-center justify-center gap-2.5 sm:gap-3.5 px-3.5 sm:px-4 py-2 z-30 max-w-[calc(100vw-2rem)]">
         {/* Pause/Resume button */}
         <button
           onClick={togglePause}
-          className="w-10 h-10 rounded-full flex items-center justify-center bg-white border border-[#d6dbe2] text-[#374151] hover:bg-[#f3f4f6] transition cursor-pointer shadow-sm"
+          className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-white border border-[#d6dbe2] text-[#374151] hover:bg-[#f3f4f6] transition cursor-pointer shadow-sm flex-none"
           title={isPaused ? 'Resume Recording' : 'Pause Recording'}
         >
           {isPaused ? <Play className="w-4 h-4 fill-current ml-0.5" /> : <Pause className="w-4 h-4 fill-current" />}
@@ -276,7 +273,7 @@ export const RecordingScreen: React.FC = () => {
         {/* Stop Button */}
         <button
           onClick={stopRecording}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#e2564c] hover:bg-[#c2453c] text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer ring-4 ring-[#e2564c]/20"
+          className="inline-flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-[#e2564c] hover:bg-[#c2453c] text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer ring-4 ring-[#e2564c]/20 flex-none"
           title="Stop & Save Meeting"
         >
           <Square className="w-3.5 h-3.5 fill-current" />
@@ -284,7 +281,7 @@ export const RecordingScreen: React.FC = () => {
         </button>
 
         {/* Animated Wave Bars */}
-        <div className="flex items-center gap-1 px-2 h-6">
+        <div className="flex items-center gap-1 px-1.5 sm:px-2 h-6 flex-none">
           <span className={`w-1 bg-[#e2564c] rounded-full h-3 ${isPaused ? 'h-1' : 'animate-wave-1'}`} />
           <span className={`w-1 bg-[#e2564c] rounded-full h-5 ${isPaused ? 'h-1' : 'animate-wave-2'}`} />
           <span className={`w-1 bg-[#e2564c] rounded-full h-2.5 ${isPaused ? 'h-1' : 'animate-wave-3'}`} />

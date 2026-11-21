@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMeeting } from '../../context/MeetingContext.js';
-import { api } from '../../services/api.js';
+import { api } from '../../services/api';
 import {
   Sparkles,
   X,
@@ -79,8 +79,8 @@ export const AboutModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 bg-[#0f1117]/65 backdrop-blur-xs flex items-center justify-center z-50 p-4 select-none animate-in fade-in duration-150">
-      <div className="bg-white rounded-3xl shadow-2xl border border-[#e5e7eb] w-full max-w-xl max-h-[92vh] overflow-y-auto overflow-x-hidden no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col">
+    <div className="fixed inset-0 bg-[#0f1117]/65 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4 select-none animate-in fade-in duration-150">
+      <div className="bg-white rounded-3xl shadow-2xl border border-[#e5e7eb] w-[calc(100vw-2rem)] max-w-xl max-h-[calc(100dvh-2rem)] overflow-y-auto overflow-x-hidden no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col">
         
         {/* Modal Header */}
         <div className="flex items-center justify-end px-5 pt-4 pb-0">

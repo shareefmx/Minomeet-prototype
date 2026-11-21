@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useMeeting } from '../../context/MeetingContext.js';
-import { api } from '../../services/api.js';
+import { api } from '../../services/api';
 import {
   Upload,
   X,
@@ -32,7 +32,7 @@ export const ImportAudioModal: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [audioDuration, setAudioDuration] = useState<string>('00:00');
   const [autoSummarize, setAutoSummarize] = useState<boolean>(true);
-  const [selectedModel, setSelectedModel] = useState<string>(activeTranscriptionModel?.id || 'whisper-large-v3-turbo');
+  const [selectedModel, setSelectedModel] = useState<string>(activeTranscriptionModel?.id || 'parakeet-tdt-0.6b-v3-int8');
   const [selectedLanguage, setSelectedLanguage] = useState<string>(settings?.defaultLanguage || 'English');
   const [selectedTemplate, setSelectedTemplate] = useState<string>(settings?.defaultTemplate || 'Standard Meeting Notes');
   const [isUploading, setIsUploading] = useState<boolean>(false);
@@ -43,7 +43,7 @@ export const ImportAudioModal: React.FC = () => {
 
   // Sync selectedModel if active model loads
   useEffect(() => {
-    if (activeTranscriptionModel?.id && !selectedModel) {
+    if (activeTranscriptionModel?.id) {
       setSelectedModel(activeTranscriptionModel.id);
     }
   }, [activeTranscriptionModel]);
@@ -213,12 +213,12 @@ export const ImportAudioModal: React.FC = () => {
   const chosenModel = transcriptionModels.find(m => m.id === selectedModel);
 
   return (
-    <div className="fixed inset-0 bg-[#0f1117]/65 backdrop-blur-xs flex items-center justify-center z-50 p-4 select-none">
-      <div className="bg-white rounded-3xl shadow-2xl border border-[#e5e7eb] w-full max-w-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 bg-[#0f1117]/65 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4 select-none">
+      <div className="bg-white rounded-3xl shadow-2xl border border-[#e5e7eb] w-[calc(100vw-2rem)] max-w-xl max-h-[calc(100dvh-2rem)] overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 duration-200 flex flex-col">
         
         {/* ================= STAGE 1: 1% - 100% TRANSCRIPTION LOADING ANIMATION ================= */}
         {isUploading ? (
-          <div className="p-8 sm:p-10 space-y-6">
+          <div className="p-5 sm:p-8 space-y-6">
             {/* Header Status */}
             <div className="flex items-center justify-between border-b border-[#f1f3f5] pb-4">
               <div className="flex items-center gap-2.5">

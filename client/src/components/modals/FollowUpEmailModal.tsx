@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useMeeting } from '../../context/MeetingContext.js';
-import { api } from '../../services/api.js';
-import { exportService } from '../../services/export.js';
+import { api } from '../../services/api';
+import { exportService } from '../../services/export';
 import { getEffectiveModelForAgent } from '../../utils/aiModelConfig.js';
 import { Mail, X, Copy, Send, Sparkles, Loader2 } from 'lucide-react';
 
@@ -63,10 +63,10 @@ export const FollowUpEmailModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 bg-[#0f1117]/65 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl border border-[#e5e7eb] w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in duration-150">
+    <div className="fixed inset-0 bg-[#0f1117]/65 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4">
+      <div className="bg-white rounded-2xl shadow-2xl border border-[#e5e7eb] w-[calc(100vw-2rem)] max-w-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-2rem)] animate-in fade-in zoom-in duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#e5e7eb]">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-[#e5e7eb] flex-none">
           <div className="flex items-center gap-2 font-black text-base text-[#111827]">
             <Mail className="w-4 h-4 text-[#2563eb]" />
             <span>Generate Follow-Up Email Draft</span>
@@ -80,7 +80,7 @@ export const FollowUpEmailModal: React.FC = () => {
         </div>
 
         {/* Tone Selector */}
-        <div className="px-6 py-3 bg-[#f8fafd] border-b border-[#e5e7eb] flex items-center justify-between flex-wrap gap-2">
+        <div className="px-4 sm:px-6 py-2.5 sm:py-3 bg-[#f8fafd] border-b border-[#e5e7eb] flex items-center justify-between flex-wrap gap-2 flex-none">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-[#6b7280]">Email Style / Tone:</span>
             {(['professional', 'concise', 'action-oriented'] as const).map((t) => (
@@ -105,7 +105,7 @@ export const FollowUpEmailModal: React.FC = () => {
         </div>
 
         {/* Body */}
-        <div className="p-6 space-y-4 flex-1 overflow-y-auto">
+        <div className="p-4 sm:p-6 space-y-4 flex-1 min-h-0 overflow-y-auto no-scrollbar">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16 space-y-3">
               <Loader2 className="w-8 h-8 text-[#2563eb] animate-spin" />
@@ -195,3 +195,4 @@ export const FollowUpEmailModal: React.FC = () => {
     </div>
   );
 };
+

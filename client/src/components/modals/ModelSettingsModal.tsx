@@ -5,18 +5,18 @@ import { AI_PROVIDERS_CONFIG, getAvailableModelsForProvider } from '../../utils/
 
 export const ModelSettingsModal: React.FC = () => {
   const { modals, closeModal, settings, updateSettings, showToast, setCurrentScreen, setSettingsTab } = useMeeting();
-  const [selected, setSelected] = useState<string>(settings?.selectedModel && !settings.selectedModel.startsWith('Nimbus') && !settings.selectedModel.startsWith('Qwen') ? settings.selectedModel : 'gemini-2.5-flash');
+  const [selected, setSelected] = useState<string>(settings?.selectedModel || 'qwen3.5:4b');
 
   React.useEffect(() => {
     if (settings?.selectedModel) {
-      setSelected(settings.selectedModel.startsWith('Nimbus') || settings.selectedModel.startsWith('Qwen') ? 'gemini-2.5-flash' : settings.selectedModel);
+      setSelected(settings.selectedModel);
     }
   }, [settings?.selectedModel, modals.model]);
 
   if (!modals.model) return null;
 
   const handleSave = async () => {
-    let provId = settings?.activeAIProvider || 'google';
+    let provId = settings?.activeAIProvider || 'builtin-ai';
     for (const prov of AI_PROVIDERS_CONFIG) {
       const models = getAvailableModelsForProvider(settings, prov.id);
       if (models.some(m => m.id === selected)) {
@@ -40,10 +40,10 @@ export const ModelSettingsModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 bg-[#0f1117]/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl border border-[#e5e7eb] w-full max-w-xl overflow-hidden animate-in fade-in zoom-in duration-150">
+    <div className="fixed inset-0 bg-[#0f1117]/60 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4">
+      <div className="bg-white rounded-2xl shadow-2xl border border-[#e5e7eb] w-[calc(100vw-2rem)] max-w-xl max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-[#e5e7eb]">
+        <div className="flex items-center justify-between px-4 sm:px-6 pt-4 sm:pt-5 pb-3 border-b border-[#e5e7eb] flex-none">
           <div className="flex items-center gap-2 font-extrabold text-base text-[#111827]">
             <Cpu className="w-4 h-4 text-[#2563eb]" />
             <span>AI Model &amp; Synthesis Engine</span>
@@ -57,7 +57,7 @@ export const ModelSettingsModal: React.FC = () => {
         </div>
 
         {/* Body */}
-        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+        <div className="p-4 sm:p-6 space-y-4 flex-1 min-h-0 overflow-y-auto no-scrollbar">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <p className="text-xs text-[#6b7280]">
               Select the active AI model used across all meetings, notes, and agents.

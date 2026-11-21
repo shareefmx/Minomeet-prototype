@@ -8,8 +8,8 @@ export const DeleteConfirmModal: React.FC = () => {
   if (!modals.delete || !meetingToDelete) return null;
 
   return (
-    <div className="fixed inset-0 bg-[#0f1117]/65 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
-      <div className="bg-white rounded-2xl shadow-2xl border border-[#e5e7eb] w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150 p-6">
+    <div className="fixed inset-0 bg-[#0f1117]/65 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4 animate-in fade-in duration-150">
+      <div className="bg-white rounded-2xl shadow-2xl border border-[#e5e7eb] w-[calc(100vw-2rem)] max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150 p-4 sm:p-6">
         {/* Header */}
         <div className="flex items-start justify-between">
           <div className="w-12 h-12 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center text-red-600 flex-none shadow-xs">

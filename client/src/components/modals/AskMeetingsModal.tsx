@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useMeeting } from '../../context/MeetingContext.js';
-import { api } from '../../services/api.js';
+import { api } from '../../services/api';
 import { getEffectiveModelForAgent } from '../../utils/aiModelConfig.js';
-import { ChatMessage } from '../../types/meeting.js';
+import { ChatMessage } from '../../types/meeting';
 import {
   X,
   Send,
@@ -146,10 +146,10 @@ export const AskMeetingsModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 bg-[#0f1117]/65 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4">
-      <div className="bg-white rounded-2xl shadow-2xl border border-[#e5e7eb] w-full max-w-3xl h-[680px] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-150">
+      <div className="bg-white rounded-2xl shadow-2xl border border-[#e5e7eb] w-[calc(100vw-2rem)] max-w-3xl h-[min(680px,calc(100dvh-2rem))] max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-150">
         
         {/* TOP HEADER */}
-        <div className="flex items-center justify-between px-6 py-3.5 border-b border-[#e5e7eb] bg-gradient-to-r from-[#eef2ff] via-[#f8fafc] to-[#ffffff]">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 border-b border-[#e5e7eb] bg-gradient-to-r from-[#eef2ff] via-[#f8fafc] to-[#ffffff] flex-none">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#7c3aed] text-white flex items-center justify-center shadow-xs">
               <Bot className="w-4 h-4" />
@@ -185,7 +185,7 @@ export const AskMeetingsModal: React.FC = () => {
         </div>
 
         {/* SCOPE CONTROLS */}
-        <div className="px-6 py-2 bg-[#fbfcfd] border-b border-[#e5e7eb] flex items-center justify-between gap-3">
+        <div className="px-4 sm:px-6 py-2 bg-[#fbfcfd] border-b border-[#e5e7eb] flex items-center justify-between gap-3 flex-none flex-wrap">
           {/* Meeting Scope Selector */}
           <div className="flex items-center gap-1.5">
             <Layers className="w-3.5 h-3.5 text-[#6366f1]" />
@@ -207,7 +207,7 @@ export const AskMeetingsModal: React.FC = () => {
         </div>
 
         {/* CHAT CONVERSATION VIEW */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4 bg-[#fafbfc]">
+        <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-3.5 sm:p-6 space-y-4 bg-[#fafbfc]">
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4 my-auto">
               <div className="w-12 h-12 rounded-2xl bg-[#eff6ff] text-[#2563eb] flex items-center justify-center shadow-xs">
@@ -342,7 +342,7 @@ export const AskMeetingsModal: React.FC = () => {
         </div>
 
         {/* ACTIVE MODEL FOOTER */}
-        <div className="px-6 py-2 bg-[#f8fafc] border-t border-[#e2e8f0] flex items-center justify-between flex-wrap gap-2 text-xs">
+        <div className="px-4 sm:px-6 py-2 bg-[#f8fafc] border-t border-[#e2e8f0] flex items-center justify-between flex-wrap gap-2 text-xs flex-none">
           <div className="flex items-center gap-2">
             <span className="font-bold text-[#475569]">AI Model:</span>
             <span className="font-semibold text-[#1e293b]">{activeModel.providerName} &bull; {activeModel.modelId}</span>
@@ -379,7 +379,7 @@ export const AskMeetingsModal: React.FC = () => {
         </div>
 
         {/* INPUT COMPOSER BAR */}
-        <div className="p-3.5 sm:p-4 border-t border-[#e5e7eb] bg-white">
+        <div className="p-3 sm:p-4 border-t border-[#e5e7eb] bg-white flex-none">
           <form
             onSubmit={(e) => {
               e.preventDefault();

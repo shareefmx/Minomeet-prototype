@@ -99,7 +99,7 @@ export const SegmentedPills: React.FC<SegmentedPillsProps> = ({
   onChange,
   className = ''
 }) => (
-  <div className={`inline-flex items-center bg-[#f3f4f6] border border-[#e5e7eb] p-1 rounded-xl gap-1 ${className}`}>
+  <div className={`inline-flex items-center bg-[#f3f4f6] border border-[#e5e7eb] p-1 rounded-xl gap-1 overflow-x-auto no-scrollbar max-w-full ${className}`}>
     {options.map((opt) => {
       const active = opt.id === value;
       return (
@@ -107,7 +107,7 @@ export const SegmentedPills: React.FC<SegmentedPillsProps> = ({
           key={opt.id}
           type="button"
           onClick={() => onChange(opt.id)}
-          className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+          className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap flex-none ${
             active
               ? 'bg-white text-[#2563eb] shadow-xs'
               : 'text-[#6b7280] hover:text-[#111827]'

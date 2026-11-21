@@ -30,7 +30,7 @@ export const App: React.FC = () => {
   }, []);
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-white font-sans select-none text-[#111827]">
+    <div className="h-dvh w-full overflow-hidden flex flex-col bg-white font-sans select-none text-[#111827]">
       {/* 6-Second Auto-Dismissing Header Banner with Animated Timeline */}
       {showBanner && (
         <div className="relative bg-gradient-to-r from-[#4f46e5] via-[#4338ca] to-[#312e81] text-white px-6 py-2.5 text-xs flex items-center justify-between shadow-md transition-all duration-500 z-30 flex-none animate-in fade-in slide-in-from-top-2 overflow-hidden">

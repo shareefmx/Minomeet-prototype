@@ -36,7 +36,7 @@ export const Titlebar: React.FC = () => {
   };
 
   return (
-    <header className="h-16 flex-none flex items-center justify-between px-6 bg-white border-b border-[#e5e7eb] shadow-xs select-none z-20">
+    <header className="h-14 sm:h-16 flex-none flex items-center justify-between px-3 sm:px-6 bg-white border-b border-[#e5e7eb] shadow-xs select-none z-20">
       {/* Left: Brand Identity & Active Screen Breadcrumb */}
       <div className="flex items-center gap-4">
         {/* Minomeet Logo & Name */}

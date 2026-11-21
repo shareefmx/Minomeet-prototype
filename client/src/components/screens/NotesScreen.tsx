@@ -26,7 +26,7 @@ import {
   Bot,
   X
 } from 'lucide-react';
-import { ActionItem } from '../../types/meeting.js';
+import { ActionItem } from '../../types/meeting';
 import { getEffectiveModelForAgent } from '../../utils/aiModelConfig.js';
 
 interface TemplateConfig {
@@ -408,8 +408,8 @@ export const NotesScreen: React.FC = () => {
         {/* ================= LEFT PANE: TRANSCRIPT ================= */}
         <div className="flex-1 flex flex-col min-w-0 bg-[#fafafa]/50">
           {/* Transcript Toolbar */}
-          <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-[#e5e7eb] bg-white h-[53px] flex-none">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2 sm:py-2.5 border-b border-[#e5e7eb] bg-white min-h-[53px] flex-none flex-wrap">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
               <button
                 onClick={() => openModal('ask')}
                 className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg bg-[#eff6ff] border border-[#bfdbfe] text-xs font-bold text-[#1d4ed8] hover:bg-[#dbeafe] shadow-2xs transition cursor-pointer"
@@ -496,7 +496,7 @@ export const NotesScreen: React.FC = () => {
             className="p-3 border-b border-[#e5e7eb] bg-white flex flex-col gap-2.5 flex-none z-20 shadow-2xs"
           >
             {/* ROW 1: AI Generation & Model Settings */}
-            <div className="grid grid-cols-4 gap-2.5 w-full">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5 w-full">
               {/* 1. Generate / Regenerate MOM Button */}
               <button
                 onClick={() => generateSummaryForActive(activeTemplate, activeLang)}
@@ -541,7 +541,7 @@ export const NotesScreen: React.FC = () => {
                   <ChevronDown className="w-3.5 h-3.5 text-[#94a3b8] flex-none" />
                 </button>
                 {templateMenuOpen && (
-                  <div className="absolute top-full mt-1.5 left-0 w-80 bg-white border border-[#e2e8f0] rounded-2xl shadow-xl py-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-100 max-h-80 overflow-y-auto">
+                  <div className="absolute top-full mt-1.5 left-0 w-72 sm:w-80 max-w-[calc(100vw-2rem)] bg-white border border-[#e2e8f0] rounded-2xl shadow-xl py-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-100 max-h-80 overflow-y-auto no-scrollbar">
                     <div className="px-3 py-1 text-[10px] font-bold text-[#94a3b8] uppercase tracking-wider">MOM Templates</div>
                     {templateList.map((tpl) => {
                       const isSelected = activeTemplate === tpl.name;
@@ -620,7 +620,7 @@ export const NotesScreen: React.FC = () => {
             </div>
 
             {/* ROW 2: Document Actions, Export & Save */}
-            <div className="grid grid-cols-4 gap-2.5 w-full">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5 w-full">
               {/* 5. Follow-up Email Draft */}
               <button
                 onClick={() => openModal('email')}
@@ -650,7 +650,7 @@ export const NotesScreen: React.FC = () => {
                   <ChevronDown className="w-3.5 h-3.5 text-[#94a3b8] flex-none" />
                 </button>
                 {exportMenuOpen && (
-                  <div className="absolute top-full mt-1.5 left-0 w-64 bg-white border border-[#e2e8f0] rounded-2xl shadow-xl py-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
+                  <div className="absolute top-full mt-1.5 right-0 sm:left-auto w-56 sm:w-64 max-w-[calc(100vw-2rem)] bg-white border border-[#e2e8f0] rounded-2xl shadow-xl py-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
                     <div
                       onClick={async () => {
                         setExportMenuOpen(false);
@@ -664,8 +664,11 @@ export const NotesScreen: React.FC = () => {
                       }}
                       className="flex items-center gap-2.5 px-3.5 py-2 cursor-pointer hover:bg-[#f8fafc] text-[#374151] font-medium"
                     >
-                      <Download className="w-3.5 h-3.5 text-[#2563eb]" />
-                      <span>Download Word Document (.doc)</span>
+                      <FileText className="w-4 h-4 text-[#2563eb] flex-none" />
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-[#1e293b]">Download Word Document (.doc)</span>
+                        <span className="text-[10px] text-[#64748b]">Saves directly to system Downloads</span>
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -696,11 +699,18 @@ export const NotesScreen: React.FC = () => {
                       className="w-full flex items-center gap-2.5 px-3.5 py-2 cursor-pointer hover:bg-[#f8fafc] text-[#374151] font-medium text-left disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isExportingPDF ? (
-                        <Loader2 className="w-3.5 h-3.5 text-[#2563eb] animate-spin flex-none" />
+                        <Loader2 className="w-4 h-4 text-[#2563eb] animate-spin flex-none" />
                       ) : (
-                        <Download className="w-3.5 h-3.5 text-[#e2564c] flex-none" />
+                        <Download className="w-4 h-4 text-[#e2564c] flex-none" />
                       )}
-                      <span>{isExportingPDF ? 'Generating Vector PDF…' : 'Export Full PDF (.pdf)'}</span>
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-[#1e293b]">
+                          {isExportingPDF ? 'Generating Vector PDF…' : 'Export Full PDF (.pdf)'}
+                        </span>
+                        <span className="text-[10px] text-[#64748b]">
+                          {isExportingPDF ? 'Rendering tables and sections' : 'Vector PDF with active template layout'}
+                        </span>
+                      </div>
                     </button>
                     <div
                       onClick={async () => {
@@ -715,9 +725,13 @@ export const NotesScreen: React.FC = () => {
                       }}
                       className="flex items-center gap-2.5 px-3.5 py-2 cursor-pointer hover:bg-[#f8fafc] text-[#374151] font-medium"
                     >
-                      <Download className="w-3.5 h-3.5 text-[#0284c7]" />
-                      <span>Download Markdown (.md)</span>
+                      <Download className="w-4 h-4 text-[#0284c7] flex-none" />
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-[#1e293b]">Download Markdown (.md)</span>
+                        <span className="text-[10px] text-[#64748b]">Structured notes for GitHub/Obsidian</span>
+                      </div>
                     </div>
+                    <div className="h-px bg-[#f1f5f9] my-1" />
                     <div
                       onClick={() => {
                         setExportMenuOpen(false);
@@ -729,9 +743,9 @@ export const NotesScreen: React.FC = () => {
                           showToast('Print Unavailable', 'Printing is not available here. Use Export Full PDF.', 'info');
                         }
                       }}
-                      className="flex items-center gap-2.5 px-3.5 py-2 cursor-pointer hover:bg-[#f8fafc] text-[#374151] font-medium border-t border-[#f1f5f9] mt-1 pt-2"
+                      className="flex items-center gap-2.5 px-3.5 py-2 cursor-pointer hover:bg-[#f8fafc] text-[#374151] font-medium"
                     >
-                      <Printer className="w-3.5 h-3.5 text-[#15803d]" />
+                      <Printer className="w-4 h-4 text-[#15803d] flex-none" />
                       <span>Print Document</span>
                     </div>
                     <div
@@ -741,7 +755,7 @@ export const NotesScreen: React.FC = () => {
                       }}
                       className="flex items-center gap-2.5 px-3.5 py-2 cursor-pointer hover:bg-[#f8fafc] text-[#374151] font-medium"
                     >
-                      <Copy className="w-3.5 h-3.5 text-[#7c3aed]" />
+                      <Copy className="w-4 h-4 text-[#7c3aed] flex-none" />
                       <span>Copy Formatted Text</span>
                     </div>
                   </div>
@@ -777,7 +791,7 @@ export const NotesScreen: React.FC = () => {
                   <ChevronDown className="w-3.5 h-3.5 text-[#94a3b8] flex-none" />
                 </button>
                 {optionsMenuOpen && (
-                  <div className="absolute top-full mt-1.5 right-0 w-48 bg-white border border-[#e2e8f0] rounded-xl shadow-xl py-1 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
+                  <div className="absolute top-full mt-1.5 right-0 w-44 sm:w-48 max-w-[calc(100vw-2rem)] bg-white border border-[#e2e8f0] rounded-xl shadow-xl py-1 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
                     <button
                       onClick={() => {
                         setOptionsMenuOpen(false);
@@ -914,7 +928,7 @@ export const NotesScreen: React.FC = () => {
               {(() => {
                 const tmpl = getTemplateConfig(activeTemplate);
                 return (
-                  <div className="flex-1 overflow-y-auto p-8 space-y-6">
+                  <div className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-6 lg:p-8 space-y-6 max-w-3xl mx-auto w-full">
                     {/* 1. Header & Title */}
                     <div>
                       <div className="flex items-center gap-2 mb-2">
@@ -1050,8 +1064,8 @@ export const NotesScreen: React.FC = () => {
                         </button>
                       </div>
 
-                      <div className="border border-[#e5e7eb] rounded-xl overflow-hidden shadow-xs">
-                        <table className="w-full text-left text-xs border-collapse">
+                      <div className="border border-[#e5e7eb] rounded-xl overflow-x-auto no-scrollbar shadow-xs w-full">
+                        <table className="w-full min-w-[500px] text-left text-xs border-collapse">
                           <thead className="bg-[#f9fafb] border-b border-[#e5e7eb] text-[#6b7280] font-bold uppercase tracking-wider">
                             <tr>
                               <th className="p-3 w-10 text-center">Done</th>

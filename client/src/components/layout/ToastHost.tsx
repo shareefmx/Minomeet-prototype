@@ -8,7 +8,7 @@ export const ToastHost: React.FC = () => {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed right-6 bottom-6 flex flex-col gap-2.5 z-[100] max-w-[360px] pointer-events-none">
+    <div className="fixed right-3 sm:right-6 bottom-3 sm:bottom-6 flex flex-col gap-2.5 z-[100] w-[calc(100vw-1.5rem)] sm:w-auto max-w-[360px] pointer-events-none">
       {toasts.map((t) => {
         let style = 'bg-[#dcfce7] border-[#86efac] text-[#15803d]';
         let Icon = CheckCircle2;
