@@ -582,6 +582,10 @@ export const api = {
     } catch {
       return [];
     }
+  },
+
+  async openExternalUrl(url: string): Promise<void> {
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 };
 
