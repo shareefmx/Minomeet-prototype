@@ -341,33 +341,29 @@ export const Sidebar: React.FC = () => {
         </button>
       </nav>
 
-      {/* 4. MEETING NOTES SECTION HEADER */}
+      {/* 4. MEETING NOTES SECTION HEADER (Hidden when minimized in rail mode) */}
       <div
-        className={`flex items-center ${
-          isDrawer ? 'justify-between px-3' : 'justify-center lg:justify-between px-2 lg:px-4'
-        } mt-1 mb-1.5 text-[#111827] flex-none`}
+        className={`${
+          isDrawer ? 'flex' : 'hidden lg:flex'
+        } items-center justify-between px-3 lg:px-4 mt-1 mb-1.5 text-[#111827] flex-none`}
       >
         <div className="flex items-center gap-2">
           <FileText className="w-3.5 h-3.5 text-[#6b7280] flex-none" />
-          <span
-            className={`text-[12px] font-extrabold truncate ${
-              isDrawer ? 'inline' : 'hidden lg:inline'
-            }`}
-          >
+          <span className="text-[12px] font-extrabold truncate">
             Meeting Notes
           </span>
         </div>
-        <span
-          className={`text-xs text-[#9aa2af] font-normal flex-none ${
-            isDrawer ? 'inline' : 'hidden lg:inline'
-          }`}
-        >
+        <span className="text-xs text-[#9aa2af] font-normal flex-none">
           ({filteredMeetings.length})
         </span>
       </div>
 
-      {/* 5. MEETING NOTES LIST */}
-      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-1 px-1.5 lg:px-2">
+      {/* 5. MEETING NOTES LIST (Hidden when minimized in rail mode) */}
+      <div
+        className={`${
+          isDrawer ? 'flex' : 'hidden lg:flex'
+        } flex-col flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-1 px-1.5 lg:px-2`}
+      >
         {filteredMeetings.length === 0 ? (
           <div className="text-center py-6 px-2 text-xs text-[#9aa2af]">
             {searchQuery ? 'No meetings matching search.' : 'No recorded meetings yet.'}
@@ -385,9 +381,7 @@ export const Sidebar: React.FC = () => {
                     selectMeeting(meeting);
                     if (isDrawer) setIsMobileOpen(false);
                   }}
-                  className={`relative ${
-                    isDrawer ? 'flex' : 'hidden lg:flex'
-                  } items-center justify-between gap-1.5 px-2.5 py-2 rounded-lg cursor-pointer text-[12.5px] leading-snug transition group ${
+                  className={`relative flex items-center justify-between gap-1.5 px-2.5 py-2 rounded-lg cursor-pointer text-[12.5px] leading-snug transition group ${
                     isActive
                       ? 'bg-[#eaf1ff] text-[#1d4ed8] font-semibold border-l-2 border-[#2563eb]'
                       : 'text-[#374151] hover:bg-[#f6f7f9]'
@@ -482,37 +476,14 @@ export const Sidebar: React.FC = () => {
                     )}
                   </div>
                 </div>
-
-                {/* Collapsed Rail Item View (< 1024px, hidden in drawer) */}
-                {!isDrawer && (
-                  <div className="flex lg:hidden justify-center py-0.5">
-                    <button
-                      onClick={() => {
-                        selectMeeting(meeting);
-                        if (isDrawer) setIsMobileOpen(false);
-                      }}
-                      className={`relative w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold transition cursor-pointer select-none ${
-                        isActive
-                          ? 'bg-[#eaf1ff] text-[#1d4ed8] border border-[#bfdbfe] shadow-xs'
-                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                      }`}
-                      title={`${meeting.title} (${meeting.duration})${
-                        meeting.summary ? ' • MOM Ready' : ''
-                      }`}
-                      aria-label={meeting.title}
-                    >
-                      {meeting.title ? meeting.title.trim().charAt(0).toUpperCase() : 'M'}
-                      {meeting.isPinned && (
-                        <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#f59e0b]" />
-                      )}
-                    </button>
-                  </div>
-                )}
               </div>
             );
           })
         )}
       </div>
+
+      {/* Minimized Rail Spacer (Takes up vertical space when meeting notes are hidden) */}
+      {!isDrawer && <div className="flex-1 lg:hidden" />}
 
       {/* 6. FOOTER ACTIONS (Pinned to bottom: Settings, About, Version) */}
       <div className="border-t border-[#e5e7eb] pt-2.5 pb-2 px-2 lg:px-3 mt-auto flex flex-col gap-2 flex-none">
@@ -527,7 +498,7 @@ export const Sidebar: React.FC = () => {
               }}
               className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg font-bold text-[12px] border border-[#e5e7eb] transition cursor-pointer truncate ${
                 currentScreen === 'settings'
-                  ? 'bg-[#eaf1ff] text-[#1e3a8a]'
+                  ? 'bg-[#eaf1ff] text-[#1e3a8a] border-[#bfdbfe]'
                   : 'bg-[#eef0f2] text-[#374151] hover:bg-[#e4e7ea]'
               }`}
             >
@@ -556,7 +527,7 @@ export const Sidebar: React.FC = () => {
                 }}
                 className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg font-bold text-[12px] border border-[#e5e7eb] transition cursor-pointer truncate ${
                   currentScreen === 'settings'
-                    ? 'bg-[#eaf1ff] text-[#1e3a8a]'
+                    ? 'bg-[#eaf1ff] text-[#1e3a8a] border-[#bfdbfe]'
                     : 'bg-[#eef0f2] text-[#374151] hover:bg-[#e4e7ea]'
                 }`}
               >
