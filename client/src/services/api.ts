@@ -8,6 +8,31 @@ export interface EngineDiagnosticResult {
   message: string;
 }
 import { Meeting, AppSettings, MOMSummary, TranscriptLine, TranscriptionModel, TranscriptionEngineStatus, StorageStats, MOMTemplate, AskQuestionResponse, CalendarAccount, CalendarEvent, CalendarProvidersConfig } from '../types/meeting.js';
+import packageJson from '../../package.json';
+import { REPO_URL, RELEASES_URL, LATEST_RELEASE_API } from '../config/app.js';
+import { isNewerVersion } from '../utils/semver.js';
+
+export type UpdateState =
+  | 'up_to_date'
+  | 'update_available'
+  | 'offline'
+  | 'rate_limited'
+  | 'no_releases'
+  | 'error';
+
+export interface UpdateCheckResult {
+  state: UpdateState;
+  currentVersion: string;
+  latestVersion?: string;
+  publishedAt?: string;
+  releaseName?: string;
+  releaseNotes?: string;
+  releaseUrl: string;
+  repoUrl: string;
+  downloadUrl?: string;
+  checkedAt: number;
+  message?: string;
+}
 
 const API_BASE = '/api';
 
@@ -455,50 +480,117 @@ export const api = {
     }
   },
 
-  async checkUpdate(): Promise<{
-    currentVersion: string;
-    latestVersion: string;
-    hasUpdate: boolean;
-    releaseName?: string;
-    releaseNotes?: string;
-    releaseUrl: string;
-    repoUrl: string;
-    publishedAt?: string;
-    latestCommit?: { sha: string; message: string; date: string; url: string };
-  }> {
-    try {
-      const res = await fetch(`${API_BASE}/settings/check-update`);
-      if (res.ok) {
-        const data = await res.json();
-        return data;
-      }
-    } catch {}
+  async getAppVersion(): Promise<string> {
+    return packageJson.version || '1.2.2';
+  },
 
-    // Fallback: direct browser fetch to GitHub
+  async checkUpdate(force = false): Promise<UpdateCheckResult> {
+    const currentVersion = await this.getAppVersion();
+    const cacheKey = 'minomeet_client_last_update_check';
+    const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+    if (!force && typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(cacheKey);
+        if (raw) {
+          const cached = JSON.parse(raw) as UpdateCheckResult;
+          if (cached && Date.now() - cached.checkedAt < CACHE_TTL_MS) {
+            return { ...cached, currentVersion };
+          }
+        }
+      } catch {}
+    }
+
+    const repoUrl = REPO_URL;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     try {
-      const ghRes = await fetch('https://api.github.com/repos/shareefmx/Minomeet-prototype/releases/latest');
-      if (ghRes.ok) {
-        const data = await ghRes.json();
+      const res = await fetch(LATEST_RELEASE_API, {
+        headers: { Accept: 'application/vnd.github+json' },
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (res.status === 404) {
+        const result: UpdateCheckResult = {
+          state: 'no_releases',
+          currentVersion,
+          releaseUrl: RELEASES_URL,
+          repoUrl,
+          checkedAt: Date.now(),
+          message: 'No published releases yet'
+        };
+        try { localStorage.setItem(cacheKey, JSON.stringify(result)); } catch {}
+        return result;
+      }
+
+      if (res.status === 403 || res.status === 429) {
         return {
-          currentVersion: 'v1.2.2',
-          latestVersion: data.tag_name || 'v1.2.2',
-          hasUpdate: (data.tag_name || 'v1.2.2').replace(/^v/, '') > '1.2.2',
-          releaseName: data.name,
-          releaseNotes: data.body,
-          releaseUrl: data.html_url || 'https://github.com/shareefmx/Minomeet-prototype/releases',
-          repoUrl: 'https://github.com/shareefmx/Minomeet-prototype',
-          publishedAt: data.published_at
+          state: 'rate_limited',
+          currentVersion,
+          releaseUrl: RELEASES_URL,
+          repoUrl,
+          checkedAt: Date.now(),
+          message: 'GitHub limit reached, try again later'
         };
       }
-    } catch {}
 
-    return {
-      currentVersion: 'v1.2.2',
-      latestVersion: 'v1.2.2',
-      hasUpdate: false,
-      releaseUrl: 'https://github.com/shareefmx/Minomeet-prototype/releases',
-      repoUrl: 'https://github.com/shareefmx/Minomeet-prototype'
-    };
+      if (!res.ok) {
+        return {
+          state: 'error',
+          currentVersion,
+          releaseUrl: RELEASES_URL,
+          repoUrl,
+          checkedAt: Date.now(),
+          message: `GitHub returned status ${res.status}`
+        };
+      }
+
+      const data = await res.json();
+      const latestTag = (data.tag_name || '').trim();
+      const hasUpdate = isNewerVersion(latestTag, currentVersion);
+
+      const result: UpdateCheckResult = {
+        state: hasUpdate ? 'update_available' : 'up_to_date',
+        currentVersion,
+        latestVersion: latestTag || currentVersion,
+        publishedAt: data.published_at,
+        releaseName: data.name,
+        releaseNotes: data.body,
+        releaseUrl: data.html_url || RELEASES_URL,
+        repoUrl,
+        downloadUrl: data.html_url || RELEASES_URL,
+        checkedAt: Date.now()
+      };
+
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(result));
+      } catch {}
+
+      return result;
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      let lastCheckedTime: number | undefined;
+      try {
+        const raw = localStorage.getItem(cacheKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          lastCheckedTime = parsed.checkedAt;
+        }
+      } catch {}
+
+      return {
+        state: 'offline',
+        currentVersion,
+        releaseUrl: RELEASES_URL,
+        repoUrl,
+        checkedAt: lastCheckedTime || Date.now(),
+        message: err.name === 'AbortError'
+          ? 'GitHub request timed out (10s)'
+          : 'Cannot reach GitHub.'
+      };
+    }
   },
 
   // ==========================================
