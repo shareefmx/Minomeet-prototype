@@ -7,7 +7,7 @@ export interface EngineDiagnosticResult {
   latencyMs: number;
   message: string;
 }
-import { Meeting, AppSettings, MOMSummary, TranscriptLine, TranscriptionModel, TranscriptionEngineStatus, StorageStats, MOMTemplate, AskQuestionResponse } from '../types/meeting.js';
+import { Meeting, AppSettings, MOMSummary, TranscriptLine, TranscriptionModel, TranscriptionEngineStatus, StorageStats, MOMTemplate, AskQuestionResponse, CalendarAccount, CalendarProvidersConfig } from '../types/meeting.js';
 
 const API_BASE = '/api';
 
@@ -499,6 +499,64 @@ export const api = {
       releaseUrl: 'https://github.com/shareefmx/minomeet/releases',
       repoUrl: 'https://github.com/shareefmx/minomeet'
     };
+  },
+
+  // ==========================================
+  // CALENDAR & MEETINGS
+  // ==========================================
+  async getCalendarProvidersConfig(): Promise<CalendarProvidersConfig> {
+    try {
+      const res = await fetch(`${API_BASE}/calendar/providers-config`);
+      if (res.ok) return await res.json();
+    } catch {}
+    return {
+      googleConfigured: true,
+      microsoftConfigured: true
+    };
+  },
+
+  async getCalendarAccounts(): Promise<CalendarAccount[]> {
+    try {
+      const res = await fetch(`${API_BASE}/calendar/accounts`);
+      if (res.ok) return await res.json();
+    } catch {}
+    try {
+      const stored = localStorage.getItem('minomeet_calendar_accounts');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async startCalendarSignIn(provider: 'google' | 'microsoft'): Promise<CalendarAccount> {
+    const res = await fetch(`${API_BASE}/calendar/sign-in/${provider}`, { method: 'POST' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Failed to sign in with ${provider}`);
+    }
+    return await res.json();
+  },
+
+  async cancelCalendarSignIn(): Promise<void> {
+    try {
+      await fetch(`${API_BASE}/calendar/cancel-sign-in`, { method: 'POST' });
+    } catch {}
+  },
+
+  async signOutCalendar(accountId: string): Promise<void> {
+    try {
+      await fetch(`${API_BASE}/calendar/accounts/${encodeURIComponent(accountId)}`, { method: 'DELETE' });
+    } catch {}
+    try {
+      const stored = localStorage.getItem('minomeet_calendar_accounts');
+      if (stored) {
+        const accounts: CalendarAccount[] = JSON.parse(stored);
+        localStorage.setItem(
+          'minomeet_calendar_accounts',
+          JSON.stringify(accounts.filter(a => a.id !== accountId))
+        );
+      }
+    } catch {}
   }
 };
 

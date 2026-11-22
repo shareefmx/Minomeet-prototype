@@ -4,6 +4,7 @@ import { Titlebar } from './components/layout/Titlebar.js';
 import { Sidebar } from './components/layout/Sidebar.js';
 import { ToastHost } from './components/layout/ToastHost.js';
 import { HomeScreen } from './components/screens/HomeScreen.js';
+import { MeetingsScreen } from './components/screens/MeetingsScreen.js';
 import { RecordingScreen } from './components/screens/RecordingScreen.js';
 import { NotesScreen } from './components/screens/NotesScreen.js';
 import { SettingsScreen } from './components/screens/SettingsScreen.js';
@@ -14,6 +15,7 @@ import { FollowUpEmailModal } from './components/modals/FollowUpEmailModal.js';
 import { AboutModal } from './components/modals/AboutModal.js';
 import { DeleteConfirmModal } from './components/modals/DeleteConfirmModal.js';
 import { RenameMeetingModal } from './components/modals/RenameMeetingModal.js';
+import { ConnectCalendarModal } from './components/modals/ConnectCalendarModal.js';
 import { X, AlertCircle, RotateCw } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -99,6 +101,7 @@ export const App: React.FC = () => {
         {/* Central Screen Viewport */}
         <main className="flex-1 flex flex-col min-w-0 bg-white relative overflow-hidden">
           {currentScreen === 'home' && <HomeScreen />}
+          {currentScreen === 'meetings' && <MeetingsScreen />}
           {currentScreen === 'recording' && <RecordingScreen />}
           {currentScreen === 'notes' && <NotesScreen />}
           {currentScreen === 'settings' && <SettingsScreen />}
@@ -113,6 +116,7 @@ export const App: React.FC = () => {
       <AboutModal />
       <DeleteConfirmModal />
       <RenameMeetingModal />
+      <ConnectCalendarModal />
 
       {/* Toast Notification Container */}
       <ToastHost />

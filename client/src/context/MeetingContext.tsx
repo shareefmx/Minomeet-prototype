@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
-import { Meeting, AppSettings, ScreenType, SettingsTab, ToastMessage, TranscriptLine, MOMSummary, TranscriptionModel, TranscriptionEngineStatus, StorageStats, MOMTemplate, AudioCaptureMode, AUDIO_CAPTURE_MODES } from '../types/meeting.js';
+import { Meeting, AppSettings, ScreenType, SettingsTab, ToastMessage, TranscriptLine, MOMSummary, TranscriptionModel, TranscriptionEngineStatus, StorageStats, MOMTemplate, AudioCaptureMode, AUDIO_CAPTURE_MODES, CalendarAccount, CalendarProvidersConfig } from '../types/meeting.js';
 import { api } from '../services/api.js';
 import { speechService } from '../services/speech.js';
 
@@ -33,7 +33,22 @@ interface MeetingContextType {
     email: boolean;
     delete: boolean;
     rename: boolean;
+    connectCalendar: boolean;
   };
+  calendarAccounts: CalendarAccount[];
+  isCalendarConnected: boolean;
+  calendarProvidersConfig: CalendarProvidersConfig;
+  calendarSignInState: {
+    status: 'idle' | 'authorizing' | 'error' | 'success';
+    provider?: 'google' | 'microsoft';
+    error?: string;
+  };
+  hasSeenMeetingsNav: boolean;
+  markMeetingsNavSeen: () => void;
+  refreshCalendarAccounts: () => Promise<void>;
+  startCalendarSignIn: (provider: 'google' | 'microsoft') => Promise<void>;
+  cancelCalendarSignIn: () => Promise<void>;
+  signOutCalendarAccount: (accountId: string) => Promise<void>;
   // Actions
   setCurrentScreen: (screen: ScreenType) => void;
   setSettingsTab: (tab: SettingsTab) => void;
@@ -118,8 +133,135 @@ export const MeetingProvider: React.FC<{ children: ReactNode }> = ({ children })
     ask: false,
     email: false,
     delete: false,
-    rename: false
+    rename: false,
+    connectCalendar: false
   });
+
+  const [calendarAccounts, setCalendarAccounts] = useState<CalendarAccount[]>([]);
+  const [calendarProvidersConfig, setCalendarProvidersConfig] = useState<CalendarProvidersConfig>({
+    googleConfigured: true,
+    microsoftConfigured: true
+  });
+  const [calendarSignInState, setCalendarSignInState] = useState<{
+    status: 'idle' | 'authorizing' | 'error' | 'success';
+    provider?: 'google' | 'microsoft';
+    error?: string;
+  }>({ status: 'idle' });
+  const [hasSeenMeetingsNav, setHasSeenMeetingsNav] = useState<boolean>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        return localStorage.getItem('minomeet_has_seen_meetings') === 'true';
+      }
+    } catch {}
+    return false;
+  });
+
+  const markMeetingsNavSeen = () => {
+    setHasSeenMeetingsNav(true);
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('minomeet_has_seen_meetings', 'true');
+      }
+    } catch {}
+  };
+
+  const refreshCalendarAccounts = async () => {
+    try {
+      const [accounts, config] = await Promise.all([
+        api.getCalendarAccounts(),
+        api.getCalendarProvidersConfig()
+      ]);
+      setCalendarAccounts(accounts);
+      setCalendarProvidersConfig(config);
+    } catch (e) {
+      console.warn('Failed to refresh calendar accounts:', e);
+    }
+  };
+
+  const signInTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const cancelCalendarSignIn = async () => {
+    if (signInTimeoutRef.current) {
+      clearTimeout(signInTimeoutRef.current);
+      signInTimeoutRef.current = null;
+    }
+    setCalendarSignInState({ status: 'idle' });
+    try {
+      await api.cancelCalendarSignIn();
+    } catch {}
+  };
+
+  const startCalendarSignIn = async (provider: 'google' | 'microsoft') => {
+    if (provider === 'google' && !calendarProvidersConfig.googleConfigured) {
+      setCalendarSignInState({
+        status: 'error',
+        provider,
+        error: 'Google sign-in is not configured. Add MINOMEET_GOOGLE_CLIENT_ID to your environment or .env file.'
+      });
+      return;
+    }
+    if (provider === 'microsoft' && !calendarProvidersConfig.microsoftConfigured) {
+      setCalendarSignInState({
+        status: 'error',
+        provider,
+        error: 'Microsoft sign-in is not configured. Add MINOMEET_MICROSOFT_CLIENT_ID to your environment or .env file.'
+      });
+      return;
+    }
+
+    setCalendarSignInState({ status: 'authorizing', provider });
+
+    if (signInTimeoutRef.current) clearTimeout(signInTimeoutRef.current);
+    signInTimeoutRef.current = setTimeout(() => {
+      setCalendarSignInState({
+        status: 'error',
+        provider,
+        error: 'Sign-in timed out after 3 minutes. Please try again.'
+      });
+      api.cancelCalendarSignIn().catch(() => {});
+    }, 180000);
+
+    try {
+      const account = await api.startCalendarSignIn(provider);
+      if (signInTimeoutRef.current) {
+        clearTimeout(signInTimeoutRef.current);
+        signInTimeoutRef.current = null;
+      }
+      setCalendarSignInState({ status: 'success', provider });
+      setCalendarAccounts(prev => {
+        const filtered = prev.filter(a => a.id !== account.id && a.provider !== account.provider);
+        return [...filtered, account];
+      });
+      showToast('Calendar connected', `Signed in as ${account.email}`, 'success');
+      closeModal('connectCalendar');
+      setCurrentScreen('meetings');
+    } catch (err: any) {
+      if (signInTimeoutRef.current) {
+        clearTimeout(signInTimeoutRef.current);
+        signInTimeoutRef.current = null;
+      }
+      const msg = err?.message || 'Authentication was cancelled or failed.';
+      setCalendarSignInState({
+        status: 'error',
+        provider,
+        error: msg
+      });
+    }
+  };
+
+  const signOutCalendarAccount = async (accountId: string) => {
+    try {
+      const target = calendarAccounts.find(a => a.id === accountId);
+      await api.signOutCalendar(accountId);
+      setCalendarAccounts(prev => prev.filter(a => a.id !== accountId));
+      showToast('Signed out of calendar', target ? target.email : 'Account disconnected', 'info');
+      if (calendarAccounts.length <= 1) {
+        setCurrentScreen('home');
+      }
+    } catch (err: any) {
+      showToast('Failed to sign out', err?.message || 'Unknown error', 'error');
+    }
+  };
 
   // Initial load
   useEffect(() => {
@@ -405,10 +547,22 @@ export const MeetingProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const closeModal = (modal: keyof typeof modals) => {
+    if (modal === 'connectCalendar') {
+      if (calendarSignInState.status === 'authorizing') {
+        cancelCalendarSignIn();
+      } else {
+        setCalendarSignInState({ status: 'idle' });
+      }
+    }
     setModals(prev => ({ ...prev, [modal]: false }));
   };
 
   const closeAllModals = () => {
+    if (calendarSignInState.status === 'authorizing') {
+      cancelCalendarSignIn();
+    } else {
+      setCalendarSignInState({ status: 'idle' });
+    }
     setModals({
       import: false,
       model: false,
@@ -416,7 +570,8 @@ export const MeetingProvider: React.FC<{ children: ReactNode }> = ({ children })
       ask: false,
       email: false,
       delete: false,
-      rename: false
+      rename: false,
+      connectCalendar: false
     });
     setMeetingToDelete(null);
     setMeetingToRename(null);
@@ -889,7 +1044,17 @@ export const MeetingProvider: React.FC<{ children: ReactNode }> = ({ children })
         deleteTemplate,
         setDefaultTemplate,
         recoverDraft,
-        dismissDraft
+        dismissDraft,
+        calendarAccounts,
+        isCalendarConnected: calendarAccounts.length > 0,
+        calendarProvidersConfig,
+        calendarSignInState,
+        hasSeenMeetingsNav,
+        markMeetingsNavSeen,
+        refreshCalendarAccounts,
+        startCalendarSignIn,
+        cancelCalendarSignIn,
+        signOutCalendarAccount
       }}
     >
       {children}

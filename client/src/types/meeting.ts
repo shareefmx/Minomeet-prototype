@@ -117,9 +117,57 @@ export interface AppSettings {
   betaDiarization: boolean;
   betaAskMeetings: boolean;
   betaAutoFollowUp: boolean;
+  calendarPreferences?: CalendarPreferences;
 }
 
-export type ScreenType = 'home' | 'recording' | 'notes' | 'settings';
+export type ScreenType = 'home' | 'meetings' | 'recording' | 'notes' | 'settings';
+
+export interface CalendarAccount {
+  id: string;
+  provider: 'google' | 'microsoft';
+  email: string;
+  displayName: string;
+  color: string;
+  connectedAt: string;
+  lastSyncAt?: string;
+  status: 'active' | 'reconnect_needed';
+}
+
+export interface CalendarProvidersConfig {
+  googleConfigured: boolean;
+  microsoftConfigured: boolean;
+}
+
+export interface CalendarEvent {
+  id: string;
+  accountId: string;
+  provider: 'google' | 'microsoft';
+  title: string;
+  start: string;
+  end: string;
+  isAllDay: boolean;
+  location?: string;
+  organizer?: string;
+  attendeesCount: number;
+  joinUrl?: string;
+  joinProvider?: 'meet' | 'teams' | 'zoom' | 'webex' | 'other';
+  status: 'confirmed' | 'tentative' | 'cancelled';
+  webLink?: string;
+}
+
+export interface CalendarPreferences {
+  meetingsEnabled: boolean;
+  defaultView: 'today' | 'tomorrow' | 'last_viewed';
+  timeFormat: '12h' | '24h' | 'system';
+  weekStartsOn: 'monday' | 'sunday';
+  showCancelled: boolean;
+  showAllDay: boolean;
+  autoRefreshInterval: 'off' | '5m' | '15m';
+  remindersEnabled: boolean;
+  reminderLeadTimeMinutes: number;
+  askBeforeJoin: boolean;
+  showRecordAndJoin: boolean;
+}
 
 export type SettingsTab = 'recording' | 'transcription' | 'model' | 'summary' | 'templates' | 'general' | 'beta';
 
