@@ -28,8 +28,13 @@ export const MeetingsScreen: React.FC = () => {
     startRecording,
     settings,
     setCurrentScreen,
-    setSettingsTab
+    setSettingsTab,
+    refreshCalendarAccounts
   } = useMeeting();
+
+  useEffect(() => {
+    refreshCalendarAccounts();
+  }, []);
 
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     if (typeof window !== 'undefined') {
@@ -265,8 +270,8 @@ export const MeetingsScreen: React.FC = () => {
     await api.openExternalUrl(url);
   };
 
-  const handleRecordAndJoin = async (_title: string, url?: string) => {
-    await startRecording();
+  const handleRecordAndJoin = async (title: string, url?: string) => {
+    await startRecording(undefined, title);
     if (url && url.startsWith('https://')) {
       setTimeout(() => {
         api.openExternalUrl(url);

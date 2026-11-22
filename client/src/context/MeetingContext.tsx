@@ -56,7 +56,7 @@ interface MeetingContextType {
   setSearchQuery: (query: string) => void;
   setAudioSource: (src: AudioCaptureMode) => void;
   selectMeeting: (meeting: Meeting) => void;
-  startRecording: (sourceType?: AudioCaptureMode) => Promise<void>;
+  startRecording: (sourceType?: AudioCaptureMode, initialTitle?: string) => Promise<void>;
   stopRecording: () => Promise<void>;
   cancelRecording: () => void;
   generateSummaryForActive: (template?: string, language?: string, model?: string) => Promise<void>;
@@ -154,6 +154,7 @@ export const MeetingProvider: React.FC<{
     provider?: 'google' | 'microsoft';
     error?: string;
   }>({ status: 'idle' });
+  const [pendingMeetingTitle, setPendingMeetingTitle] = useState<string | null>(null);
   const [hasSeenMeetingsNav, setHasSeenMeetingsNav] = useState<boolean>(() => {
     try {
       if (typeof window !== 'undefined') {
@@ -322,6 +323,7 @@ export const MeetingProvider: React.FC<{
     loadSettings();
     refreshTranscriptionModels();
     refreshTemplates();
+    refreshCalendarAccounts();
   }, []);
 
   // Enforce Clean Light Theme permanently across entire application
@@ -637,7 +639,8 @@ export const MeetingProvider: React.FC<{
     closeAllModals();
   };
 
-  const startRecording = async (sourceType?: AudioCaptureMode) => {
+  const startRecording = async (sourceType?: AudioCaptureMode, initialTitle?: string) => {
+    setPendingMeetingTitle(initialTitle || null);
     const chosenSource = sourceType || settings?.defaultAudioSource || 'mixed';
     setAudioSource(chosenSource);
     speechService.setAudioSource(chosenSource).catch(() => {});
@@ -723,9 +726,12 @@ export const MeetingProvider: React.FC<{
       }
 
       const shouldAutoSummarize = settings?.autoSummaryOnConclude ?? settings?.autoSummary ?? true;
+      const defaultTitle = `Meeting ${new Date().toISOString().slice(0, 10)}_${m}-${s}`;
+      const titleToUse = pendingMeetingTitle || defaultTitle;
+      setPendingMeetingTitle(null);
 
       const newMeeting = await api.createMeeting({
-        title: `Meeting ${new Date().toISOString().slice(0, 10)}_${m}-${s}`,
+        title: titleToUse,
         transcript: lines,
         duration,
         audioPath,

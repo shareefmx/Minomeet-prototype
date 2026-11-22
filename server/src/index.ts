@@ -8,6 +8,7 @@ import aiRouter from './routes/ai.js';
 import settingsRouter from './routes/settings.js';
 import transcriptionRouter from './routes/transcription.js';
 import { templatesRouter } from './routes/templates.js';
+import { calendarRouter } from './routes/calendar.js';
 import { liveStreamService } from './services/liveStreamService.js';
 
 import fs from 'fs';
@@ -89,6 +90,7 @@ app.use('/api/ai', aiRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/transcription', transcriptionRouter);
 app.use('/api/templates', templatesRouter);
+app.use('/api/calendar', calendarRouter);
 
 // Root endpoint / SPA fallback
 app.get('/', (req, res, next) => {
