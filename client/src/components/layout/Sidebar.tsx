@@ -117,7 +117,7 @@ export const Sidebar: React.FC = () => {
     <div className="flex flex-col h-full overflow-hidden select-none">
       {/* 1. PRIMARY ACTION BUTTONS (Above Search Area) */}
       {isDrawer ? (
-        <div className="px-3 pt-3 pb-1 flex flex-col gap-2 flex-none">
+        <div className="px-3 pt-4 pb-1 flex flex-col gap-2 flex-none">
           {/* Start Recording Button (Blue) */}
           <button
             onClick={() => {
@@ -152,7 +152,7 @@ export const Sidebar: React.FC = () => {
       ) : (
         <>
           {/* Expanded Top Action Buttons (>= 1024px) */}
-          <div className="hidden lg:flex flex-col gap-2 px-3 pt-3 pb-1 flex-none">
+          <div className="hidden lg:flex flex-col gap-2 px-3 pt-5 lg:pt-6 pb-1 flex-none">
             {/* Start Recording Button (Blue) */}
             <button
               onClick={() => {
@@ -182,7 +182,7 @@ export const Sidebar: React.FC = () => {
           </div>
 
           {/* Collapsed Top Action Buttons (< 1024px Rail) */}
-          <div className="flex lg:hidden flex-col items-center gap-2 pt-3 pb-1 flex-none">
+          <div className="flex lg:hidden flex-col items-center gap-2 pt-5 pb-1 flex-none">
             {/* Start Recording Icon Button (Blue) */}
             <button
               onClick={() => {
