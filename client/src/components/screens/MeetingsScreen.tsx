@@ -17,17 +17,36 @@ import {
   ChevronDown,
   AlertTriangle,
   CheckCircle2,
-  CalendarDays
+  CalendarDays,
+  LogOut
 } from 'lucide-react';
 
 export const MeetingsScreen: React.FC = () => {
   const {
     calendarAccounts,
     openModal,
-    startRecording
+    startRecording,
+    settings,
+    setCurrentScreen,
+    setSettingsTab
   } = useMeeting();
 
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    if (typeof window !== 'undefined') {
+      const defaultView = settings?.calendarPreferences?.defaultView;
+      if (defaultView === 'tomorrow') {
+        return new Date(Date.now() + 86400000);
+      }
+      if (defaultView === 'last_viewed') {
+        const saved = sessionStorage.getItem('minomeet_last_viewed_meeting_date');
+        if (saved) {
+          const d = new Date(saved);
+          if (!isNaN(d.getTime())) return d;
+        }
+      }
+    }
+    return new Date();
+  });
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [weekEventMap, setWeekEventMap] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -37,6 +56,26 @@ export const MeetingsScreen: React.FC = () => {
   const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [pastExpanded, setPastExpanded] = useState<boolean>(false);
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState<boolean>(false);
+  const accountMenuRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('minomeet_last_viewed_meeting_date', selectedDate.toISOString());
+    }
+  }, [selectedDate]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(e.target as Node)) {
+        setIsAccountMenuOpen(false);
+      }
+    };
+    if (isAccountMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isAccountMenuOpen]);
 
   // Helper: check if date is today
   const isToday = (d: Date) => {
@@ -82,26 +121,27 @@ export const MeetingsScreen: React.FC = () => {
     return `${year}-${month}-${day}`;
   };
 
-  // Week days starting Monday
+  // Week days starting Monday or Sunday
   const weekDays = useMemo(() => {
     const curr = new Date(selectedDate);
     const day = curr.getDay(); // 0 is Sunday
-    const diffToMonday = day === 0 ? -6 : 1 - day;
-    const monday = new Date(curr);
-    monday.setDate(curr.getDate() + diffToMonday);
+    const weekStartsOnSunday = settings?.calendarPreferences?.weekStartsOn === 'sunday';
+    const diff = weekStartsOnSunday ? -day : (day === 0 ? -6 : 1 - day);
+    const startDay = new Date(curr);
+    startDay.setDate(curr.getDate() + diff);
 
     const days: Date[] = [];
     for (let i = 0; i < 7; i++) {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
+      const d = new Date(startDay);
+      d.setDate(startDay.getDate() + i);
       days.push(d);
     }
     return days;
-  }, [selectedDate]);
+  }, [selectedDate, settings?.calendarPreferences?.weekStartsOn]);
 
   // Fetch events for selected day & week indicators
   const loadEvents = useCallback(async (date: Date, showSpinner = true) => {
-    if (calendarAccounts.length === 0) {
+    if (calendarAccounts.length === 0 || settings?.calendarPreferences?.meetingsEnabled === false) {
       setEvents([]);
       return;
     }
@@ -152,11 +192,16 @@ export const MeetingsScreen: React.FC = () => {
     loadEvents(selectedDate, true);
   }, [selectedDate, selectedAccountId, calendarAccounts.length]);
 
-  // Auto-refresh every 5 minutes and on window focus
+  // Auto-refresh interval and on window focus
   useEffect(() => {
+    const intervalSetting = settings?.calendarPreferences?.autoRefreshInterval || '5m';
+    if (intervalSetting === 'off' || settings?.calendarPreferences?.meetingsEnabled === false) {
+      return;
+    }
+    const ms = intervalSetting === '15m' ? 15 * 60 * 1000 : 5 * 60 * 1000;
     const interval = setInterval(() => {
       loadEvents(selectedDate, false);
-    }, 5 * 60 * 1000);
+    }, ms);
 
     const onFocus = () => {
       loadEvents(selectedDate, false);
@@ -167,7 +212,7 @@ export const MeetingsScreen: React.FC = () => {
       clearInterval(interval);
       window.removeEventListener('focus', onFocus);
     };
-  }, [loadEvents, selectedDate]);
+  }, [loadEvents, selectedDate, settings?.calendarPreferences?.autoRefreshInterval, settings?.calendarPreferences?.meetingsEnabled]);
 
   // Keyboard navigation: ← → change day, T = today
   useEffect(() => {
@@ -213,6 +258,10 @@ export const MeetingsScreen: React.FC = () => {
   const handleJoinMeeting = async (url?: string) => {
     if (!url) return;
     if (!url.startsWith('https://')) return;
+    if (settings?.calendarPreferences?.askBeforeJoin) {
+      const confirmed = window.confirm(`Open meeting link in your browser?\n\n${url}`);
+      if (!confirmed) return;
+    }
     await api.openExternalUrl(url);
   };
 
@@ -238,6 +287,10 @@ export const MeetingsScreen: React.FC = () => {
     let nextMin: number | null = null;
 
     for (const ev of events) {
+      if (settings?.calendarPreferences?.showCancelled === false && ev.status === 'cancelled') {
+        continue;
+      }
+
       const start = new Date(ev.start);
       const end = new Date(ev.end);
       const durationMs = Math.max(0, end.getTime() - start.getTime());
@@ -267,7 +320,7 @@ export const MeetingsScreen: React.FC = () => {
       nextMeetingTitle: nextTitle,
       totalDurationMin: totalMinutes
     };
-  }, [events, selectedDate]);
+  }, [events, selectedDate, settings?.calendarPreferences?.showCancelled]);
 
   const formatDurationText = (mins: number) => {
     const h = Math.floor(mins / 60);
@@ -280,6 +333,13 @@ export const MeetingsScreen: React.FC = () => {
   const formatEventTime = (isoString: string) => {
     try {
       const d = new Date(isoString);
+      const fmt = settings?.calendarPreferences?.timeFormat;
+      if (fmt === '24h') {
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      }
+      if (fmt === '12h') {
+        return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+      }
       return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     } catch {
       return isoString;
@@ -292,6 +352,30 @@ export const MeetingsScreen: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col h-full overflow-y-auto no-scrollbar bg-[#f8fafc] text-[#111827] select-none p-4 sm:p-6 lg:p-8">
       <div className="max-w-3xl mx-auto w-full space-y-4">
+        {/* Paused Feature Banner */}
+        {settings?.calendarPreferences?.meetingsEnabled === false && (
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 text-center space-y-3 shadow-xs">
+            <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center mx-auto">
+              <CalendarIcon className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-[#111827]">Meetings Synchronization is Paused</h3>
+              <p className="text-xs text-[#6b7280] mt-0.5 max-w-sm mx-auto">
+                Calendar integration is disabled in settings. Background syncing and reminders are suspended.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setCurrentScreen('settings');
+                setSettingsTab('meetings');
+              }}
+              className="px-3.5 py-1.5 bg-[#2563eb] hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs"
+            >
+              Configure in Settings
+            </button>
+          </div>
+        )}
+
         {/* Reconnect Banner */}
         {reconnectNeededAccounts.map(acc => (
           <div
@@ -349,28 +433,81 @@ export const MeetingsScreen: React.FC = () => {
 
             {/* Right side: Accounts and Refresh */}
             <div className="flex items-center gap-3">
-              {/* Account chips */}
-              <div className="flex items-center -space-x-1.5">
-                {calendarAccounts.map(acc => (
-                  <div
-                    key={acc.id}
-                    title={`${acc.displayName} (${acc.email})`}
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2 border-white shadow-2xs"
-                    style={{ backgroundColor: acc.provider === 'google' ? '#2563eb' : '#0284c7' }}
-                  >
-                    {acc.provider === 'google' ? 'G' : 'O'}
-                  </div>
-                ))}
-              </div>
-
+              {/* Account chips with dropdown menu */}
               {calendarAccounts.length > 0 && (
-                <button
-                  onClick={() => openModal('connectCalendar')}
-                  className="p-1.5 rounded-lg border border-[#e5e7eb] hover:bg-gray-100 text-gray-600 transition cursor-pointer"
-                  title="Add another calendar account"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setIsAccountMenuOpen(prev => !prev)}
+                    className="flex items-center gap-1.5 p-1 pl-1.5 rounded-full border border-[#e5e7eb] hover:bg-gray-50 transition cursor-pointer shadow-2xs"
+                    title="Manage connected accounts"
+                    aria-label="Account menu"
+                  >
+                    <div className="flex items-center -space-x-1.5">
+                      {calendarAccounts.map(acc => (
+                        <div
+                          key={acc.id}
+                          title={`${acc.displayName} (${acc.email})`}
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2 border-white shadow-2xs"
+                          style={{ backgroundColor: acc.provider === 'google' ? '#2563eb' : '#0284c7' }}
+                        >
+                          {acc.provider === 'google' ? 'G' : 'O'}
+                        </div>
+                      ))}
+                    </div>
+                    <ChevronDown className="w-3.5 h-3.5 text-gray-400 mr-1" />
+                  </button>
+
+                  {isAccountMenuOpen && (
+                    <div
+                      ref={accountMenuRef}
+                      className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-[#e5e7eb] p-3 z-40 space-y-2.5 animate-in fade-in zoom-in-95"
+                    >
+                      <div className="text-[11px] font-bold text-[#6b7280] uppercase tracking-wider px-1">
+                        Connected Calendars
+                      </div>
+                      <div className="space-y-1.5">
+                        {calendarAccounts.map(acc => (
+                          <div key={acc.id} className="p-2 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-bold text-[#111827] truncate">{acc.displayName || acc.email}</p>
+                              <p className="text-[11px] text-[#6b7280] truncate">{acc.email}</p>
+                            </div>
+                            <span
+                              className={`w-2 h-2 rounded-full flex-none ${
+                                acc.status === 'active' ? 'bg-emerald-500' : 'bg-amber-500'
+                              }`}
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="pt-2 border-t border-gray-100 space-y-1">
+                        {calendarAccounts.length < 2 && (
+                          <button
+                            onClick={() => {
+                              setIsAccountMenuOpen(false);
+                              openModal('connectCalendar');
+                            }}
+                            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-[#2563eb] hover:bg-[#eff6ff] transition cursor-pointer text-left"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Connect another account</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            setIsAccountMenuOpen(false);
+                            openModal('calendarSignOut');
+                          }}
+                          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-red-600 hover:bg-red-50 transition cursor-pointer text-left"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          <span>Sign out</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Refresh button */}
@@ -655,7 +792,7 @@ export const MeetingsScreen: React.FC = () => {
         {!isLoading && events.length > 0 && (
           <div className="space-y-4">
             {/* All Day Events Section */}
-            {allDayEvents.length > 0 && (
+            {settings?.calendarPreferences?.showAllDay !== false && allDayEvents.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider px-1">
                   All Day ({allDayEvents.length})
@@ -786,14 +923,16 @@ export const MeetingsScreen: React.FC = () => {
         <div className="flex items-center gap-2 pt-2 sm:pt-0 pl-2 sm:pl-0 border-t sm:border-t-0 border-gray-100 shrink-0">
           {ev.joinUrl ? (
             <>
-              <button
-                onClick={() => handleRecordAndJoin(ev.title, ev.joinUrl)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition cursor-pointer"
-                title="Start recording meeting and open video call"
-              >
-                <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse" />
-                <span>Record & Join</span>
-              </button>
+              {settings?.calendarPreferences?.showRecordAndJoin !== false && (
+                <button
+                  onClick={() => handleRecordAndJoin(ev.title, ev.joinUrl)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition cursor-pointer"
+                  title="Start recording meeting and open video call"
+                >
+                  <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse" />
+                  <span>Record & Join</span>
+                </button>
+              )}
               <button
                 onClick={() => handleJoinMeeting(ev.joinUrl)}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-bold shadow-2xs transition cursor-pointer"

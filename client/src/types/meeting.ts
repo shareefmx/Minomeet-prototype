@@ -176,7 +176,7 @@ export interface CalendarPreferences {
   showRecordAndJoin: boolean;
 }
 
-export type SettingsTab = 'recording' | 'transcription' | 'model' | 'summary' | 'templates' | 'general' | 'beta';
+export type SettingsTab = 'recording' | 'transcription' | 'model' | 'summary' | 'templates' | 'meetings' | 'general' | 'beta';
 
 export interface ToastMessage {
   id: string;

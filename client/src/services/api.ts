@@ -584,6 +584,29 @@ export const api = {
     }
   },
 
+  async clearCalendarCache(): Promise<number> {
+    try {
+      const res = await fetch(`${API_BASE}/calendar/cache`, { method: 'DELETE' });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        return data.cleared || 0;
+      }
+    } catch {}
+    return 0;
+  },
+
+  async signOutAllCalendar(): Promise<boolean> {
+    try {
+      const accounts = await this.getCalendarAccounts();
+      for (const acc of accounts) {
+        await this.signOutCalendar(acc.id);
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
   async openExternalUrl(url: string): Promise<void> {
     window.open(url, '_blank', 'noopener,noreferrer');
   }

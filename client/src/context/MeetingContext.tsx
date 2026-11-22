@@ -34,6 +34,7 @@ interface MeetingContextType {
     delete: boolean;
     rename: boolean;
     connectCalendar: boolean;
+    calendarSignOut: boolean;
   };
   calendarAccounts: CalendarAccount[];
   isCalendarConnected: boolean;
@@ -99,7 +100,11 @@ interface MeetingContextType {
 
 const MeetingContext = createContext<MeetingContextType | undefined>(undefined);
 
-export const MeetingProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const MeetingProvider: React.FC<{
+  children: ReactNode;
+  initialModals?: Partial<MeetingContextType['modals']>;
+  initialAccounts?: CalendarAccount[];
+}> = ({ children, initialModals, initialAccounts }) => {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [activeMeeting, setActiveMeeting] = useState<Meeting | null>(null);
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('home');
@@ -134,10 +139,12 @@ export const MeetingProvider: React.FC<{ children: ReactNode }> = ({ children })
     email: false,
     delete: false,
     rename: false,
-    connectCalendar: false
+    connectCalendar: false,
+    calendarSignOut: false,
+    ...(initialModals || {})
   });
 
-  const [calendarAccounts, setCalendarAccounts] = useState<CalendarAccount[]>([]);
+  const [calendarAccounts, setCalendarAccounts] = useState<CalendarAccount[]>(initialAccounts || []);
   const [calendarProvidersConfig, setCalendarProvidersConfig] = useState<CalendarProvidersConfig>({
     googleConfigured: true,
     microsoftConfigured: true
@@ -171,7 +178,11 @@ export const MeetingProvider: React.FC<{ children: ReactNode }> = ({ children })
         api.getCalendarAccounts(),
         api.getCalendarProvidersConfig()
       ]);
-      setCalendarAccounts(accounts);
+      if (initialAccounts && initialAccounts.length > 0 && accounts.length === 0) {
+        setCalendarAccounts(initialAccounts);
+      } else {
+        setCalendarAccounts(accounts);
+      }
       setCalendarProvidersConfig(config);
     } catch (e) {
       console.warn('Failed to refresh calendar accounts:', e);
@@ -250,18 +261,60 @@ export const MeetingProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const signOutCalendarAccount = async (accountId: string) => {
+    const prevAccounts = [...calendarAccounts];
+    const target = calendarAccounts.find(a => a.id === accountId);
+    const email = target ? target.email : 'account';
+    const remaining = calendarAccounts.filter(a => a.id !== accountId);
+
+    // Optimistic update
+    setCalendarAccounts(remaining);
+
     try {
-      const target = calendarAccounts.find(a => a.id === accountId);
       await api.signOutCalendar(accountId);
-      setCalendarAccounts(prev => prev.filter(a => a.id !== accountId));
-      showToast('Signed out of calendar', target ? target.email : 'Account disconnected', 'info');
-      if (calendarAccounts.length <= 1) {
-        setCurrentScreen('home');
+      showToast(`Signed out of ${email}`, 'Account disconnected', 'info');
+      if (remaining.length === 0) {
+        openModal('connectCalendar');
       }
     } catch (err: any) {
+      // Rollback on failure
+      setCalendarAccounts(prevAccounts);
       showToast('Failed to sign out', err?.message || 'Unknown error', 'error');
     }
   };
+
+  // Meeting reminders check
+  useEffect(() => {
+    if (!settings?.calendarPreferences?.remindersEnabled || !settings?.notifications || calendarAccounts.length === 0) {
+      return;
+    }
+    const leadTimeMin = settings.calendarPreferences.reminderLeadTimeMinutes || 5;
+    const notifiedEvents = new Set<string>();
+
+    const checkReminders = async () => {
+      try {
+        const now = new Date();
+        const lookahead = new Date(now.getTime() + (leadTimeMin + 2) * 60 * 1000);
+        const events = await api.fetchCalendarEvents(now.toISOString(), lookahead.toISOString());
+        for (const ev of events) {
+          if (ev.isAllDay || ev.status === 'cancelled') continue;
+          if (notifiedEvents.has(ev.id)) continue;
+          const start = new Date(ev.start);
+          const diffMin = Math.round((start.getTime() - now.getTime()) / (60 * 1000));
+          if (diffMin >= 0 && diffMin <= leadTimeMin) {
+            notifiedEvents.add(ev.id);
+            sendDesktopNotification(
+              `Upcoming Meeting: ${ev.title}`,
+              `Starts in ${diffMin === 0 ? 'less than a minute' : `${diffMin} minute${diffMin === 1 ? '' : 's'}`}`
+            );
+          }
+        }
+      } catch {}
+    };
+
+    const interval = setInterval(checkReminders, 60 * 1000);
+    checkReminders();
+    return () => clearInterval(interval);
+  }, [settings?.calendarPreferences?.remindersEnabled, settings?.calendarPreferences?.reminderLeadTimeMinutes, settings?.notifications, calendarAccounts.length]);
 
   // Initial load
   useEffect(() => {
@@ -571,7 +624,8 @@ export const MeetingProvider: React.FC<{ children: ReactNode }> = ({ children })
       email: false,
       delete: false,
       rename: false,
-      connectCalendar: false
+      connectCalendar: false,
+      calendarSignOut: false
     });
     setMeetingToDelete(null);
     setMeetingToRename(null);

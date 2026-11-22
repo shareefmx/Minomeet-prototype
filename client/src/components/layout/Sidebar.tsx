@@ -38,7 +38,8 @@ export const Sidebar: React.FC = () => {
     setSettingsTab,
     calendarAccounts,
     hasSeenMeetingsNav,
-    markMeetingsNavSeen
+    markMeetingsNavSeen,
+    settings
   } = useMeeting();
 
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -317,51 +318,53 @@ export const Sidebar: React.FC = () => {
         </button>
 
         {/* Meetings Button (Directly below Home) */}
-        <button
-          onClick={() => {
-            if (!hasSeenMeetingsNav) {
-              markMeetingsNavSeen();
-            }
-            if (calendarAccounts.length > 0) {
-              setCurrentScreen('meetings');
-            } else {
-              openModal('connectCalendar');
-            }
-            if (isDrawer) setIsMobileOpen(false);
-          }}
-          className={`w-full flex items-center ${
-            isDrawer ? 'justify-start' : 'justify-center lg:justify-start'
-          } gap-2.5 px-2 lg:px-2.5 py-2 rounded-xl text-[13px] font-bold transition text-left cursor-pointer relative group ${
-            currentScreen === 'meetings'
-              ? 'bg-[#eaf1ff] text-[#1e3a8a]'
-              : 'text-[#111827] hover:bg-[#f3f4f6]'
-          }`}
-          title="Meetings"
-          aria-label="Meetings"
-        >
-          <div className="relative flex-none">
-            <Calendar className="w-4 h-4 text-[#4b5563] group-hover:scale-105 transition" />
+        {settings?.calendarPreferences?.meetingsEnabled !== false && (
+          <button
+            onClick={() => {
+              if (!hasSeenMeetingsNav) {
+                markMeetingsNavSeen();
+              }
+              if (calendarAccounts.length > 0) {
+                setCurrentScreen('meetings');
+              } else {
+                openModal('connectCalendar');
+              }
+              if (isDrawer) setIsMobileOpen(false);
+            }}
+            className={`w-full flex items-center ${
+              isDrawer ? 'justify-start' : 'justify-center lg:justify-start'
+            } gap-2.5 px-2 lg:px-2.5 py-2 rounded-xl text-[13px] font-bold transition text-left cursor-pointer relative group ${
+              currentScreen === 'meetings'
+                ? 'bg-[#eaf1ff] text-[#1e3a8a]'
+                : 'text-[#111827] hover:bg-[#f3f4f6]'
+            }`}
+            title="Meetings"
+            aria-label="Meetings"
+          >
+            <div className="relative flex-none">
+              <Calendar className="w-4 h-4 text-[#4b5563] group-hover:scale-105 transition" />
+              {!hasSeenMeetingsNav && (
+                <span
+                  className={`lg:hidden absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#2563eb] ring-2 ring-white ${
+                    isDrawer ? 'hidden' : 'block'
+                  }`}
+                />
+              )}
+            </div>
+            <span className={`truncate ${isDrawer ? 'inline' : 'hidden lg:inline'}`}>
+              Meetings
+            </span>
             {!hasSeenMeetingsNav && (
               <span
-                className={`lg:hidden absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#2563eb] ring-2 ring-white ${
-                  isDrawer ? 'hidden' : 'block'
+                className={`ml-auto text-[9.5px] font-bold px-1.5 py-0.5 rounded-full bg-[#eff6ff] text-[#2563eb] border border-[#bfdbfe] flex-none ${
+                  isDrawer ? 'inline' : 'hidden lg:inline'
                 }`}
-              />
+              >
+                New
+              </span>
             )}
-          </div>
-          <span className={`truncate ${isDrawer ? 'inline' : 'hidden lg:inline'}`}>
-            Meetings
-          </span>
-          {!hasSeenMeetingsNav && (
-            <span
-              className={`ml-auto text-[9.5px] font-bold px-1.5 py-0.5 rounded-full bg-[#eff6ff] text-[#2563eb] border border-[#bfdbfe] flex-none ${
-                isDrawer ? 'inline' : 'hidden lg:inline'
-              }`}
-            >
-              New
-            </span>
-          )}
-        </button>
+          </button>
+        )}
 
         {/* Ask Your Meetings Button */}
         <button

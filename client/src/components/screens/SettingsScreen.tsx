@@ -49,8 +49,10 @@ import {
   Search,
   Printer,
   List,
-  ListOrdered
+  ListOrdered,
+  Calendar
 } from 'lucide-react';
+import { MeetingsSettingsTab } from './MeetingsSettingsTab.js';
 import { SettingsTab, MOMTemplate, MOMTemplateSection, MOMSectionType, AIConnectionStatus, ProviderCredential, AIAgentOverride, AUDIO_CAPTURE_MODES, TRANSCRIPTION_LANGUAGES, SUMMARY_LANGUAGES } from '../../types/meeting.js';
 import { normalizeSections, isBuiltInTemplateId, resolveActiveTemplate } from '../../utils/momTemplates.js';
 import { renderMomDocumentHtml, printMomDocument } from '../../utils/momDocumentRenderer.js';
@@ -1586,6 +1588,7 @@ if (!settings) return null;
     { id: 'model', label: 'AI Model', icon: Cpu },
     { id: 'summary', label: 'Summary', icon: Sparkles },
     { id: 'templates', label: 'Templates', icon: FileText },
+    { id: 'meetings', label: 'Meetings', icon: Calendar },
     { id: 'general', label: 'General & Storage', icon: Sliders }
   ];
 
@@ -3659,7 +3662,12 @@ if (!settings) return null;
           </div>
         )}
 
-        {/* 6. GENERAL & STORAGE TAB */}
+        {/* 6. MEETINGS TAB */}
+        {settingsTab === 'meetings' && (
+          <MeetingsSettingsTab />
+        )}
+
+        {/* 7. GENERAL & STORAGE TAB */}
         {settingsTab === 'general' && (
           <div className="space-y-4">
             {/* Desktop Notifications Card */}

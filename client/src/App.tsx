@@ -16,6 +16,7 @@ import { AboutModal } from './components/modals/AboutModal.js';
 import { DeleteConfirmModal } from './components/modals/DeleteConfirmModal.js';
 import { RenameMeetingModal } from './components/modals/RenameMeetingModal.js';
 import { ConnectCalendarModal } from './components/modals/ConnectCalendarModal.js';
+import { CalendarSignOutModal } from './components/modals/CalendarSignOutModal.js';
 import { X, AlertCircle, RotateCw } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -117,6 +118,7 @@ export const App: React.FC = () => {
       <DeleteConfirmModal />
       <RenameMeetingModal />
       <ConnectCalendarModal />
+      <CalendarSignOutModal />
 
       {/* Toast Notification Container */}
       <ToastHost />
