@@ -3,8 +3,8 @@ import fs from 'fs';
 import path from 'path';
 
 describe('Responsive Layout Verification Suite across 800px - 1920px & 560px - 1080px', () => {
-  const desktopRoot = path.resolve(__dirname, '../../');
-  const webRoot = path.resolve(__dirname, '../../../../minomeet/client');
+  const desktopRoot = path.resolve(__dirname, '../../../../Minomeet-Desktop-Application/frontend');
+  const webRoot = path.resolve(__dirname, '../../');
 
   test('STEP 1: Tauri window minWidth and minHeight constraints', () => {
     const tauriConfPath = path.join(desktopRoot, 'src-tauri/tauri.conf.json');
@@ -27,17 +27,17 @@ describe('Responsive Layout Verification Suite across 800px - 1920px & 560px - 1
     }
   });
 
-  test('STEP 2: Sidebar responsive tokens (280px xl, 240px lg, 64px rail, chevron toggle)', () => {
+  test('STEP 2: Sidebar responsive tokens (260px expanded, w-16 collapsed rail, no manual chevron toggle)', () => {
     const desktopSidebar = fs.readFileSync(path.join(desktopRoot, 'src/components/layout/Sidebar.tsx'), 'utf-8');
     const webSidebar = fs.readFileSync(path.join(webRoot, 'src/components/layout/Sidebar.tsx'), 'utf-8');
 
     for (const code of [desktopSidebar, webSidebar]) {
-      expect(code).toContain('w-[64px]');
-      expect(code).toContain('w-[240px]');
-      expect(code).toContain('xl:w-[280px]');
-      expect(code).toContain('toggleSidebarCollapse');
-      expect(code).toContain('ChevronRight');
-      expect(code).toContain('ChevronLeft');
+      expect(code).toContain('w-16');
+      expect(code).toContain('lg:w-[260px]');
+      expect(code).toContain('transition-[width]');
+      expect(code).not.toContain('toggleSidebarCollapse');
+      expect(code).not.toContain('ChevronRight');
+      expect(code).not.toContain('ChevronLeft');
       expect(code).toContain('min-h-0');
       expect(code).toContain('truncate');
     }
