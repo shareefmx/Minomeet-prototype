@@ -130,7 +130,7 @@ export interface CalendarAccount {
   color: string;
   connectedAt: string;
   lastSyncAt?: string;
-  status: 'active' | 'reconnect_needed';
+  status: 'active' | 'reconnect_needed' | 'keychain_locked';
 }
 
 export interface CalendarProvidersConfig {
@@ -174,6 +174,7 @@ export interface CalendarPreferences {
   reminderLeadTimeMinutes: number;
   askBeforeJoin: boolean;
   showRecordAndJoin: boolean;
+  useSystemKeychain?: boolean;
 }
 
 export type SettingsTab = 'recording' | 'transcription' | 'model' | 'summary' | 'templates' | 'meetings' | 'general' | 'beta';
