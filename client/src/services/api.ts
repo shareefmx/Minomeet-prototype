@@ -7,7 +7,7 @@ export interface EngineDiagnosticResult {
   latencyMs: number;
   message: string;
 }
-import { Meeting, AppSettings, MOMSummary, TranscriptLine, TranscriptionModel, TranscriptionEngineStatus, StorageStats, MOMTemplate, AskQuestionResponse, CalendarAccount, CalendarProvidersConfig } from '../types/meeting.js';
+import { Meeting, AppSettings, MOMSummary, TranscriptLine, TranscriptionModel, TranscriptionEngineStatus, StorageStats, MOMTemplate, AskQuestionResponse, CalendarAccount, CalendarEvent, CalendarProvidersConfig } from '../types/meeting.js';
 
 const API_BASE = '/api';
 
@@ -558,6 +558,30 @@ export const api = {
         );
       }
     } catch {}
+  },
+
+  async reauthenticateCalendar(accountId: string): Promise<CalendarAccount> {
+    const res = await fetch(`${API_BASE}/calendar/reauthenticate/${encodeURIComponent(accountId)}`, { method: 'POST' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to reauthenticate calendar account');
+    }
+    const data = await res.json();
+    return data.account || data;
+  },
+
+  async fetchCalendarEvents(dateFrom: string, dateTo: string, accountIds?: string[]): Promise<CalendarEvent[]> {
+    try {
+      const params = new URLSearchParams({ dateFrom, dateTo });
+      if (accountIds && accountIds.length > 0) {
+        params.set('accountIds', accountIds.join(','));
+      }
+      const res = await fetch(`${API_BASE}/calendar/events?${params.toString()}`);
+      if (!res.ok) return [];
+      return await res.json();
+    } catch {
+      return [];
+    }
   }
 };
 
