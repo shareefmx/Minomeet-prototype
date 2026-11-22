@@ -138,6 +138,13 @@ export interface CalendarProvidersConfig {
   microsoftConfigured: boolean;
 }
 
+export interface CalendarSignInResult {
+  provider: 'google' | 'microsoft';
+  ok: boolean;
+  account?: CalendarAccount;
+  error?: string;
+}
+
 export interface CalendarEvent {
   id: string;
   accountId: string;

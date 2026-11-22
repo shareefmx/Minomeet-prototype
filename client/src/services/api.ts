@@ -534,7 +534,8 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || `Failed to sign in with ${provider}`);
     }
-    return await res.json();
+    const data = await res.json();
+    return data.account || data;
   },
 
   async cancelCalendarSignIn(): Promise<void> {
