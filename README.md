@@ -5,14 +5,14 @@
   ### Autonomous On-Device & Cloud Meeting Intelligence • Minutes of Meeting (MOM) Assistant
 
   <p align="center">
-    <a href="https://github.com/shareefmx/minomeet/releases"><img src="https://img.shields.io/github/v/release/shareefmx/minomeet?color=4f46e5&label=version&style=for-the-badge" alt="Release" /></a>
-    <a href="https://github.com/shareefmx/minomeet/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License" /></a>
+    <a href="https://github.com/shareefmx/Minomeet-prototype/releases"><img src="https://img.shields.io/github/v/release/shareefmx/Minomeet-prototype?color=4f46e5&label=version&style=for-the-badge" alt="Release" /></a>
+    <a href="https://github.com/shareefmx/Minomeet-prototype/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License" /></a>
     <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-18-blue.svg?style=for-the-badge&logo=react" alt="React 18" /></a>
     <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.8-3178c6.svg?style=for-the-badge&logo=typescript" alt="TypeScript" /></a>
     <a href="https://vitejs.dev/"><img src="https://img.shields.io/badge/Vite-6.0-646cff.svg?style=for-the-badge&logo=vite" alt="Vite" /></a>
     <a href="https://ollama.com/"><img src="https://img.shields.io/badge/Ollama-Local_AI-black.svg?style=for-the-badge&logo=ollama" alt="Ollama" /></a>
     <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/Docker-Ready-2496ed.svg?style=for-the-badge&logo=docker&logoColor=white" alt="Docker Ready" /></a>
-    <a href="https://github.com/shareefmx/minomeet/stargazers"><img src="https://img.shields.io/github/stars/shareefmx/minomeet?style=for-the-badge&color=eab308" alt="Stars" /></a>
+    <a href="https://github.com/shareefmx/Minomeet-prototype/stargazers"><img src="https://img.shields.io/github/stars/shareefmx/Minomeet-prototype?style=for-the-badge&color=eab308" alt="Stars" /></a>
   </p>
 
   <p align="center">
@@ -26,7 +26,7 @@
     <a href="#-key-capabilities">✨ Key Capabilities</a> •
     <a href="#-ai-model-control-panel">🎛️ AI Control Panel</a> •
     <a href="#-how-you-can-support">❤️ Support</a> •
-    <a href="https://github.com/shareefmx/minomeet/issues">🐛 Issues</a>
+    <a href="https://github.com/shareefmx/Minomeet-prototype/issues">🐛 Issues</a>
   </p>
 
   ---
@@ -76,7 +76,7 @@ Check out the full product walkthrough and see Minomeet AI in action:
 ## 🚀 Quickstart & Everyday Usage
 
 The repository is completely open-source and ready to run locally in under 2 minutes:
-👉 **GitHub Repository**: [https://github.com/shareefmx/minomeet](https://github.com/shareefmx/minomeet)
+👉 **GitHub Repository**: [https://github.com/shareefmx/Minomeet-prototype](https://github.com/shareefmx/Minomeet-prototype)
 
 ### 📋 Prerequisites
 
@@ -93,7 +93,7 @@ The repository is completely open-source and ready to run locally in under 2 min
 
 ```bash
 # Step 1: Clone the repository
-git clone https://github.com/shareefmx/minomeet.git
+git clone https://github.com/shareefmx/Minomeet-prototype.git
 cd minomeet
 
 # Step 2: Install Node.js workspace dependencies
@@ -157,7 +157,7 @@ Run Minomeet anywhere with zero manual dependencies using Docker and Docker Comp
 ### ⚡ 1-Command Startup with Docker Compose
 ```bash
 # Clone the repository
-git clone https://github.com/shareefmx/minomeet.git
+git clone https://github.com/shareefmx/Minomeet-prototype.git
 cd minomeet
 
 # Start Minomeet container in the background
@@ -302,7 +302,7 @@ minomeet/
 ## 💬 Community, Feedback & Issues
 
 If you run into any bugs, have feature requests, or want to suggest improvements:
-👉 **Open an Issue on GitHub**: [https://github.com/shareefmx/minomeet/issues](https://github.com/shareefmx/minomeet/issues)
+👉 **Open an Issue on GitHub**: [https://github.com/shareefmx/Minomeet-prototype/issues](https://github.com/shareefmx/Minomeet-prototype/issues)
 
 ---
 
@@ -311,7 +311,7 @@ If you run into any bugs, have feature requests, or want to suggest improvements
 If you find Minomeet useful for your workflow and meetings, here are a few great ways to support the project:
 
 1. **🚀 Give it a try**: Run it for your next meeting or conference call and let me know your thoughts, feature requests, or feedback!
-2. **⭐ Star the repository**: Dropping a ⭐ on [**`shareefmx/minomeet`**](https://github.com/shareefmx/minomeet) helps boost visibility and reach more open-source builders.
+2. **⭐ Star the repository**: Dropping a ⭐ on [**`shareefmx/Minomeet-prototype`**](https://github.com/shareefmx/Minomeet-prototype) helps boost visibility and reach more open-source builders.
 3. **👀 Follow on GitHub**: Follow [@shareefmx](https://github.com/shareefmx) to stay updated on new releases, tools, and local AI projects.
 4. **💖 Sponsor on GitHub**: If you'd like to support ongoing development and local AI research, consider sponsoring the project directly via [**GitHub Sponsors**](https://github.com/sponsors/shareefmx).
 

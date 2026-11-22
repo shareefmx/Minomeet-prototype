@@ -476,7 +476,7 @@ export const api = {
 
     // Fallback: direct browser fetch to GitHub
     try {
-      const ghRes = await fetch('https://api.github.com/repos/shareefmx/minomeet/releases/latest');
+      const ghRes = await fetch('https://api.github.com/repos/shareefmx/Minomeet-prototype/releases/latest');
       if (ghRes.ok) {
         const data = await ghRes.json();
         return {
@@ -485,8 +485,8 @@ export const api = {
           hasUpdate: (data.tag_name || 'v1.2.2').replace(/^v/, '') > '1.2.2',
           releaseName: data.name,
           releaseNotes: data.body,
-          releaseUrl: data.html_url || 'https://github.com/shareefmx/minomeet/releases',
-          repoUrl: 'https://github.com/shareefmx/minomeet',
+          releaseUrl: data.html_url || 'https://github.com/shareefmx/Minomeet-prototype/releases',
+          repoUrl: 'https://github.com/shareefmx/Minomeet-prototype',
           publishedAt: data.published_at
         };
       }
@@ -496,8 +496,8 @@ export const api = {
       currentVersion: 'v1.2.2',
       latestVersion: 'v1.2.2',
       hasUpdate: false,
-      releaseUrl: 'https://github.com/shareefmx/minomeet/releases',
-      repoUrl: 'https://github.com/shareefmx/minomeet'
+      releaseUrl: 'https://github.com/shareefmx/Minomeet-prototype/releases',
+      repoUrl: 'https://github.com/shareefmx/Minomeet-prototype'
     };
   },
 

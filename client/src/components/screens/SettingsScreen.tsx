@@ -4123,12 +4123,12 @@ if (!settings) return null;
                   <span>&bull;</span>
                   <span>Repository:</span>
                   <a
-                    href="https://github.com/shareefmx/minomeet"
+                    href="https://github.com/shareefmx/Minomeet-prototype"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-medium text-[#2563eb] hover:underline inline-flex items-center gap-0.5"
                   >
-                    <span>shareefmx/minomeet</span>
+                    <span>shareefmx/Minomeet-prototype</span>
                     <ArrowUpRight className="w-3 h-3" />
                   </a>
                 </div>

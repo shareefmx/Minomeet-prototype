@@ -67,8 +67,8 @@ export const AboutModal: React.FC = () => {
         currentVersion: 'v1.2.2',
         latestVersion: 'v1.2.2',
         hasUpdate: false,
-        releaseUrl: 'https://github.com/shareefmx/minomeet/releases',
-        repoUrl: 'https://github.com/shareefmx/minomeet',
+        releaseUrl: 'https://github.com/shareefmx/Minomeet-prototype/releases',
+        repoUrl: 'https://github.com/shareefmx/Minomeet-prototype',
         error: err.message
       });
       setHasChecked(true);
@@ -129,12 +129,12 @@ export const AboutModal: React.FC = () => {
                   </div>
                   <div className="text-[11px] text-[#6b7280]">
                     {checkingUpdate
-                      ? 'Checking github.com/shareefmx/minomeet…'
+                      ? 'Checking github.com/shareefmx/Minomeet-prototype…'
                       : hasChecked
                       ? updateInfo?.hasUpdate
                         ? `New version ${updateInfo?.latestVersion} is available!`
                         : `Current version v1.2.2 is up to date.`
-                      : 'Repository: shareefmx/minomeet'}
+                      : 'Repository: shareefmx/Minomeet-prototype'}
                   </div>
                 </div>
               </div>
@@ -199,7 +199,7 @@ export const AboutModal: React.FC = () => {
         <div className="px-6 py-3.5 bg-[#f8f9fb] border-b border-[#e5e7eb]">
           <div className="grid grid-cols-3 gap-2 text-center text-xs">
             <a
-              href="https://github.com/shareefmx/minomeet"
+              href="https://github.com/shareefmx/Minomeet-prototype"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-white border border-[#e5e7eb] font-bold text-[#374151] hover:text-[#111827] hover:border-[#cbd5e1] hover:shadow-2xs transition"
@@ -210,7 +210,7 @@ export const AboutModal: React.FC = () => {
             </a>
 
             <a
-              href="https://github.com/shareefmx/minomeet/releases"
+              href="https://github.com/shareefmx/Minomeet-prototype/releases"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-white border border-[#e5e7eb] font-bold text-[#374151] hover:text-[#111827] hover:border-[#cbd5e1] hover:shadow-2xs transition"
@@ -221,7 +221,7 @@ export const AboutModal: React.FC = () => {
             </a>
 
             <a
-              href="https://github.com/shareefmx/minomeet/issues"
+              href="https://github.com/shareefmx/Minomeet-prototype/issues"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-white border border-[#e5e7eb] font-bold text-[#374151] hover:text-[#111827] hover:border-[#cbd5e1] hover:shadow-2xs transition"
@@ -294,12 +294,12 @@ export const AboutModal: React.FC = () => {
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-[#6b7280] font-sans font-bold">Repository:</span>
               <a
-                href="https://github.com/shareefmx/minomeet"
+                href="https://github.com/shareefmx/Minomeet-prototype"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-[#2563eb] hover:underline"
               >
-                github.com/shareefmx/minomeet
+                github.com/shareefmx/Minomeet-prototype
               </a>
             </div>
           </div>
