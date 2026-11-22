@@ -115,8 +115,106 @@ export const Sidebar: React.FC = () => {
   // Render the core sidebar layout (used in main view and mobile drawer)
   const renderSidebarBody = (isDrawer = false) => (
     <div className="flex flex-col h-full overflow-hidden select-none">
-      {/* 1. SEARCH SECTION (First item at the top) */}
-      <div className={`${isDrawer ? 'block' : 'hidden lg:block'} px-3 pt-3.5 pb-2 flex-none`}>
+      {/* 1. PRIMARY ACTION BUTTONS (Above Search Area) */}
+      {isDrawer ? (
+        <div className="px-3 pt-3 pb-1 flex flex-col gap-2 flex-none">
+          {/* Start Recording Button (Blue) */}
+          <button
+            onClick={() => {
+              if (isRecording) stopRecording();
+              else startRecording();
+              setIsMobileOpen(false);
+            }}
+            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl font-bold text-[13px] text-white shadow-sm transition active:scale-[0.99] cursor-pointer ${
+              isRecording
+                ? 'bg-[#1d4ed8] animate-pulse ring-2 ring-[#2563eb]/40'
+                : 'bg-[#2563eb] hover:bg-[#1d4ed8]'
+            }`}
+          >
+            <Mic className={`w-4 h-4 ${isRecording ? 'animate-spin' : ''}`} />
+            <span className="truncate">
+              {isRecording ? 'Recording in progress…' : 'Start Recording'}
+            </span>
+          </button>
+
+          {/* Import Recording Button */}
+          <button
+            onClick={() => {
+              openModal('import');
+              setIsMobileOpen(false);
+            }}
+            className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl font-bold text-[13px] bg-[#dbeafe] text-[#1e3a8a] hover:bg-[#bfdbfe] transition cursor-pointer border border-[#bfdbfe]"
+          >
+            <Upload className="w-4 h-4 flex-none" />
+            <span className="truncate">Import Recording</span>
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Expanded Top Action Buttons (>= 1024px) */}
+          <div className="hidden lg:flex flex-col gap-2 px-3 pt-3 pb-1 flex-none">
+            {/* Start Recording Button (Blue) */}
+            <button
+              onClick={() => {
+                if (isRecording) stopRecording();
+                else startRecording();
+              }}
+              className={`w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl font-bold text-[13px] text-white shadow-sm transition active:scale-[0.99] cursor-pointer ${
+                isRecording
+                  ? 'bg-[#1d4ed8] animate-pulse ring-2 ring-[#2563eb]/40'
+                  : 'bg-[#2563eb] hover:bg-[#1d4ed8]'
+              }`}
+            >
+              <Mic className={`w-4 h-4 ${isRecording ? 'animate-spin' : ''}`} />
+              <span className="truncate">
+                {isRecording ? 'Recording in progress…' : 'Start Recording'}
+              </span>
+            </button>
+
+            {/* Import Recording Button */}
+            <button
+              onClick={() => openModal('import')}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl font-bold text-[13px] bg-[#dbeafe] text-[#1e3a8a] hover:bg-[#bfdbfe] transition cursor-pointer border border-[#bfdbfe]"
+            >
+              <Upload className="w-4 h-4 flex-none" />
+              <span className="truncate">Import Recording</span>
+            </button>
+          </div>
+
+          {/* Collapsed Top Action Buttons (< 1024px Rail) */}
+          <div className="flex lg:hidden flex-col items-center gap-2 pt-3 pb-1 flex-none">
+            {/* Start Recording Icon Button (Blue) */}
+            <button
+              onClick={() => {
+                if (isRecording) stopRecording();
+                else startRecording();
+              }}
+              className={`w-10 h-10 rounded-xl mx-auto flex items-center justify-center text-white transition cursor-pointer ${
+                isRecording
+                  ? 'bg-[#1d4ed8] animate-pulse ring-2 ring-[#2563eb]/40'
+                  : 'bg-[#2563eb] hover:bg-[#1d4ed8]'
+              }`}
+              title={isRecording ? 'Stop Recording' : 'Start Recording'}
+              aria-label={isRecording ? 'Stop Recording' : 'Start Recording'}
+            >
+              <Mic className={`w-4 h-4 ${isRecording ? 'animate-spin' : ''}`} />
+            </button>
+
+            {/* Import Recording Icon Button */}
+            <button
+              onClick={() => openModal('import')}
+              className="w-10 h-10 rounded-xl mx-auto flex items-center justify-center bg-[#dbeafe] text-[#1e3a8a] hover:bg-[#bfdbfe] transition cursor-pointer border border-[#bfdbfe]"
+              title="Import Recording"
+              aria-label="Import Recording"
+            >
+              <Upload className="w-4 h-4 flex-none" />
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* 2. SEARCH SECTION (Below recording buttons) */}
+      <div className={`${isDrawer ? 'block' : 'hidden lg:block'} px-3 pt-1.5 pb-2 flex-none`}>
         <div className="relative flex items-center">
           <Search className="w-4 h-4 text-[#9aa2af] absolute left-3 pointer-events-none" />
           <input
@@ -140,7 +238,7 @@ export const Sidebar: React.FC = () => {
 
       {/* Collapsed Search Icon Trigger + Popover (< 1024px, hidden in drawer and >= 1024px) */}
       {!isDrawer && (
-        <div className="lg:hidden flex flex-col items-center pt-3 pb-2 flex-none relative">
+        <div className="lg:hidden flex flex-col items-center pt-1.5 pb-2 flex-none relative">
           <button
             onClick={() => setIsSearchOpen((prev) => !prev)}
             className={`w-10 h-10 rounded-xl flex items-center justify-center transition cursor-pointer ${
@@ -192,7 +290,7 @@ export const Sidebar: React.FC = () => {
         </div>
       )}
 
-      {/* 2. NAVIGATION ITEMS */}
+      {/* 3. NAVIGATION ITEMS */}
       <nav className="space-y-1 px-2 lg:px-3 mb-2 flex-none">
         {/* Home Button */}
         <button
@@ -243,7 +341,7 @@ export const Sidebar: React.FC = () => {
         </button>
       </nav>
 
-      {/* 3. MEETING NOTES SECTION HEADER */}
+      {/* 4. MEETING NOTES SECTION HEADER */}
       <div
         className={`flex items-center ${
           isDrawer ? 'justify-between px-3' : 'justify-center lg:justify-between px-2 lg:px-4'
@@ -268,7 +366,7 @@ export const Sidebar: React.FC = () => {
         </span>
       </div>
 
-      {/* 4. MEETING NOTES LIST */}
+      {/* 5. MEETING NOTES LIST */}
       <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-1 px-1.5 lg:px-2">
         {filteredMeetings.length === 0 ? (
           <div className="text-center py-6 px-2 text-xs text-[#9aa2af]">
@@ -416,101 +514,8 @@ export const Sidebar: React.FC = () => {
         )}
       </div>
 
-      {/* 5. FOOTER ACTIONS (Pinned to bottom) */}
+      {/* 6. FOOTER ACTIONS (Pinned to bottom: Settings, About, Version) */}
       <div className="border-t border-[#e5e7eb] pt-2.5 pb-2 px-2 lg:px-3 mt-auto flex flex-col gap-2 flex-none">
-        {/* Record Button */}
-        {isDrawer ? (
-          <button
-            onClick={() => {
-              if (isRecording) stopRecording();
-              else startRecording();
-              setIsMobileOpen(false);
-            }}
-            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl font-bold text-[13px] text-white shadow-sm transition active:scale-[0.99] cursor-pointer ${
-              isRecording
-                ? 'bg-[#c2453c] animate-pulse ring-2 ring-[#e2564c]/40'
-                : 'bg-[#e2564c] hover:bg-[#d4483e]'
-            }`}
-          >
-            <Mic className={`w-4 h-4 ${isRecording ? 'animate-spin' : ''}`} />
-            <span className="truncate">
-              {isRecording ? 'Recording in progress…' : 'Start Recording'}
-            </span>
-          </button>
-        ) : (
-          <>
-            {/* Expanded Record Button */}
-            <button
-              onClick={() => {
-                if (isRecording) stopRecording();
-                else startRecording();
-              }}
-              className={`hidden lg:flex items-center justify-center gap-2 py-2 px-3 rounded-xl font-bold text-[13px] text-white shadow-sm transition active:scale-[0.99] cursor-pointer ${
-                isRecording
-                  ? 'bg-[#c2453c] animate-pulse ring-2 ring-[#e2564c]/40'
-                  : 'bg-[#e2564c] hover:bg-[#d4483e]'
-              }`}
-            >
-              <Mic className={`w-4 h-4 ${isRecording ? 'animate-spin' : ''}`} />
-              <span className="truncate">
-                {isRecording ? 'Recording in progress…' : 'Start Recording'}
-              </span>
-            </button>
-
-            {/* Collapsed Record Icon Button */}
-            <button
-              onClick={() => {
-                if (isRecording) stopRecording();
-                else startRecording();
-              }}
-              className={`lg:hidden w-10 h-10 rounded-xl mx-auto flex items-center justify-center text-white transition cursor-pointer ${
-                isRecording
-                  ? 'bg-[#c2453c] animate-pulse ring-2 ring-[#e2564c]/40'
-                  : 'bg-[#e2564c] hover:bg-[#d4483e]'
-              }`}
-              title={isRecording ? 'Stop Recording' : 'Start Recording'}
-              aria-label={isRecording ? 'Stop Recording' : 'Start Recording'}
-            >
-              <Mic className={`w-4 h-4 ${isRecording ? 'animate-spin' : ''}`} />
-            </button>
-          </>
-        )}
-
-        {/* Import Recording Button */}
-        {isDrawer ? (
-          <button
-            onClick={() => {
-              openModal('import');
-              setIsMobileOpen(false);
-            }}
-            className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl font-bold text-[13px] bg-[#dbeafe] text-[#1e3a8a] hover:bg-[#bfdbfe] transition cursor-pointer border border-[#bfdbfe]"
-          >
-            <Upload className="w-4 h-4 flex-none" />
-            <span className="truncate">Import Recording</span>
-          </button>
-        ) : (
-          <>
-            {/* Expanded Import Button */}
-            <button
-              onClick={() => openModal('import')}
-              className="hidden lg:flex items-center justify-center gap-2 py-2 px-3 rounded-xl font-bold text-[13px] bg-[#dbeafe] text-[#1e3a8a] hover:bg-[#bfdbfe] transition cursor-pointer border border-[#bfdbfe]"
-            >
-              <Upload className="w-4 h-4 flex-none" />
-              <span className="truncate">Import Recording</span>
-            </button>
-
-            {/* Collapsed Import Icon Button */}
-            <button
-              onClick={() => openModal('import')}
-              className="lg:hidden w-10 h-10 rounded-xl mx-auto flex items-center justify-center bg-[#dbeafe] text-[#1e3a8a] hover:bg-[#bfdbfe] transition cursor-pointer border border-[#bfdbfe]"
-              title="Import Recording"
-              aria-label="Import Recording"
-            >
-              <Upload className="w-4 h-4 flex-none" />
-            </button>
-          </>
-        )}
-
         {/* Secondary Buttons: Settings & About */}
         {isDrawer ? (
           <div className="grid grid-cols-2 gap-1.5">
@@ -522,7 +527,7 @@ export const Sidebar: React.FC = () => {
               }}
               className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg font-bold text-[12px] border border-[#e5e7eb] transition cursor-pointer truncate ${
                 currentScreen === 'settings'
-                  ? 'bg-[#eaf1ff] text-[#1e3a8a] border-[#bfdbfe]'
+                  ? 'bg-[#eaf1ff] text-[#1e3a8a]'
                   : 'bg-[#eef0f2] text-[#374151] hover:bg-[#e4e7ea]'
               }`}
             >
@@ -551,7 +556,7 @@ export const Sidebar: React.FC = () => {
                 }}
                 className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg font-bold text-[12px] border border-[#e5e7eb] transition cursor-pointer truncate ${
                   currentScreen === 'settings'
-                    ? 'bg-[#eaf1ff] text-[#1e3a8a] border-[#bfdbfe]'
+                    ? 'bg-[#eaf1ff] text-[#1e3a8a]'
                     : 'bg-[#eef0f2] text-[#374151] hover:bg-[#e4e7ea]'
                 }`}
               >
@@ -595,23 +600,23 @@ export const Sidebar: React.FC = () => {
             </div>
           </>
         )}
-      </div>
 
-      {/* 6. VERSION TAG */}
-      {isDrawer ? (
-        <div className="text-center text-[10px] text-[#9aa2af] mt-1 tracking-tight flex-none">
-          v1.2.2 &bull; Minomeet On-Device AI
-        </div>
-      ) : (
-        <>
-          <div className="text-center text-[10px] text-[#9aa2af] mt-1 tracking-tight flex-none hidden lg:block">
+        {/* Version Tag */}
+        {isDrawer ? (
+          <div className="text-center text-[10px] text-[#9aa2af] mt-1 tracking-tight flex-none">
             v1.2.2 &bull; Minomeet On-Device AI
           </div>
-          <div className="text-center text-[9px] text-[#9aa2af] mt-0.5 tracking-tight flex-none lg:hidden font-mono">
-            v1.2
-          </div>
-        </>
-      )}
+        ) : (
+          <>
+            <div className="text-center text-[10px] text-[#9aa2af] mt-1 tracking-tight flex-none hidden lg:block">
+              v1.2.2 &bull; Minomeet On-Device AI
+            </div>
+            <div className="text-center text-[9px] text-[#9aa2af] mt-0.5 tracking-tight flex-none lg:hidden font-mono">
+              v1.2
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 
