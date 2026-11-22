@@ -234,7 +234,8 @@ export function createSignInSession(provider: 'google' | 'microsoft', redirectUr
       state,
       response_mode: 'query'
     });
-    authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params.toString()}`;
+    const tenant = process.env.MINOMEET_MICROSOFT_TENANT_ID || process.env.MICROSOFT_TENANT_ID || 'common';
+    authUrl = `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize?${params.toString()}`;
   }
 
   return { authUrl, state };
@@ -340,7 +341,8 @@ async function exchangeMicrosoftCode(code: string, codeVerifier: string, redirec
     params.client_secret = clientSecret;
   }
 
-  const res = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+  const tenant = process.env.MINOMEET_MICROSOFT_TENANT_ID || process.env.MICROSOFT_TENANT_ID || 'common';
+  const res = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams(params).toString()
@@ -348,9 +350,6 @@ async function exchangeMicrosoftCode(code: string, codeVerifier: string, redirec
 
   if (!res.ok) {
     const errText = await res.text();
-    if (errText.includes('redirect_uri') || errText.includes('invalid_request')) {
-      throw new Error('Microsoft rejected the redirect address. Check the Azure app registration: Mobile and desktop applications > http://localhost');
-    }
     throw new Error(`Microsoft token exchange failed: ${errText}`);
   }
 
