@@ -228,7 +228,7 @@ export function createSignInSession(provider: 'google' | 'microsoft', redirectUr
       client_id: cfg.microsoftClientId!,
       redirect_uri: redirectUri,
       response_type: 'code',
-      scope: 'openid email profile offline_access Calendars.Read',
+      scope: 'openid profile email offline_access User.Read Calendars.Read',
       code_challenge: pkce.codeChallenge,
       code_challenge_method: 'S256',
       state,
@@ -348,6 +348,9 @@ async function exchangeMicrosoftCode(code: string, codeVerifier: string, redirec
 
   if (!res.ok) {
     const errText = await res.text();
+    if (errText.includes('redirect_uri') || errText.includes('invalid_request')) {
+      throw new Error('Microsoft rejected the redirect address. Check the Azure app registration: Mobile and desktop applications > http://localhost');
+    }
     throw new Error(`Microsoft token exchange failed: ${errText}`);
   }
 
