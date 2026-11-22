@@ -14,7 +14,7 @@ import { FollowUpEmailModal } from './components/modals/FollowUpEmailModal.js';
 import { AboutModal } from './components/modals/AboutModal.js';
 import { DeleteConfirmModal } from './components/modals/DeleteConfirmModal.js';
 import { RenameMeetingModal } from './components/modals/RenameMeetingModal.js';
-import { Sparkles, X, AlertCircle, RotateCw } from 'lucide-react';
+import { X, AlertCircle, RotateCw } from 'lucide-react';
 
 export const App: React.FC = () => {
   const { currentScreen, hasDraftRecovery, recoverDraft, dismissDraft } = useMeeting();
@@ -35,9 +35,11 @@ export const App: React.FC = () => {
       {showBanner && (
         <div className="relative bg-gradient-to-r from-[#4f46e5] via-[#4338ca] to-[#312e81] text-white px-6 py-2.5 text-xs flex items-center justify-between shadow-md transition-all duration-500 z-30 flex-none animate-in fade-in slide-in-from-top-2 overflow-hidden">
           <div className="flex items-center gap-2.5 font-medium truncate">
-            <span className="p-1 rounded-lg bg-white/15 flex-none shadow-xs">
-              <Sparkles className="w-4 h-4 text-yellow-300" />
-            </span>
+            <img
+              src="/logo-collapsed.png"
+              alt="Minomeet Logo"
+              className="w-5 h-5 rounded-md flex-none shadow-xs object-contain"
+            />
             <span className="font-bold text-[13px] tracking-tight">Minomeet AI Meeting Assistant Active</span>
             <span className="hidden md:inline-block opacity-90 text-xs">
               &bull; Privacy-first on-device engine &bull; Audio, transcripts &amp; MOM stay 100% on your machine

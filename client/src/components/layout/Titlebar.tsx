@@ -1,7 +1,6 @@
 import React from 'react';
 import { useMeeting } from '../../context/MeetingContext.js';
 import {
-  Sparkles,
   Mic,
   FileText,
   Settings,
@@ -44,9 +43,11 @@ export const Titlebar: React.FC = () => {
           onClick={() => setCurrentScreen('home')}
           className="flex items-center gap-2.5 group cursor-pointer"
         >
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#4f46e5] via-[#4338ca] to-[#312e81] text-white flex items-center justify-center shadow-sm group-hover:scale-105 transition">
-            <Sparkles className="w-4 h-4 text-yellow-300" />
-          </div>
+          <img
+            src="/logo-collapsed.png"
+            alt="Minomeet Logo"
+            className="w-8 h-8 rounded-xl shadow-xs group-hover:scale-105 transition object-contain"
+          />
           <div className="flex items-center gap-1.5">
             <span className="font-black text-lg tracking-tight text-[#1e3a8a]">
               Minomeet

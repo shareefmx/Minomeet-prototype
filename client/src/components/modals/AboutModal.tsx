@@ -95,9 +95,11 @@ export const AboutModal: React.FC = () => {
 
         {/* Hero Branding */}
         <div className="px-6 text-center pt-2 pb-4 border-b border-[#f3f4f6]">
-          <div className="w-16 h-16 rounded-2xl mx-auto mb-3 bg-gradient-to-br from-[#7c5cff] via-[#6366f1] to-[#2563eb] flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 ring-4 ring-indigo-50">
-            <Sparkles className="w-8 h-8" />
-          </div>
+          <img
+            src="/logo-collapsed.png"
+            alt="Minomeet Logo"
+            className="w-16 h-16 rounded-2xl mx-auto mb-3 shadow-md object-contain ring-4 ring-blue-50"
+          />
 
           <h2 className="text-2xl font-black text-[#111827] tracking-tight">Minomeet AI</h2>
           <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
