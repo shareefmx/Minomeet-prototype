@@ -4,7 +4,7 @@
  */
 
 export const GITHUB_OWNER = 'shareefmx';
-export const GITHUB_REPO = 'Minomeet-prototype';
+export const GITHUB_REPO = 'minomeet';
 export const GITHUB_REPO_LEGACY_ALIAS = 'minomeet';
 
 // Derived GitHub URLs

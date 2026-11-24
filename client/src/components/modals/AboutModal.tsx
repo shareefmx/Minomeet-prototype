@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useMeeting } from '../../context/MeetingContext.js';
+import packageJson from '../../../package.json';
 import { api, UpdateCheckResult } from '../../services/api';
 import {
   REPO_URL,
@@ -44,7 +45,7 @@ const GithubIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' })
 
 export const AboutModal: React.FC = () => {
   const { modals, closeModal, showToast } = useMeeting();
-  const [appVersion, setAppVersion] = useState<string>('1.2.2');
+  const [appVersion, setAppVersion] = useState<string>(packageJson.version || '');
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateCheckResult | null>(null);
   const [hasChecked, setHasChecked] = useState(false);

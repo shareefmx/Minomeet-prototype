@@ -67,7 +67,7 @@ setInterval(() => {
       activeSessions.delete(state);
     }
   }
-}, 60000);
+}, 60000).unref();
 
 export function getAccounts(): CalendarAccount[] {
   if (!fs.existsSync(ACCOUNTS_FILE)) return [];

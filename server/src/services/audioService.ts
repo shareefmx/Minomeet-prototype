@@ -27,44 +27,52 @@ export class AudioService {
   }
 
   /**
-   * Extracts audio stream from a video file using FFmpeg and saves as a 16kHz mono MP3.
+   * Checks whether an audio or video file contains an audio stream using FFmpeg probe.
+   */
+  public async hasAudioStream(filePath: string): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
+      execFile('ffmpeg', ['-i', filePath], { maxBuffer: 5 * 1024 * 1024 }, (_err, _stdout, stderr) => {
+        if (stderr && stderr.includes('Audio: ')) {
+          resolve(true);
+        } else {
+          resolve(false);
+        }
+      });
+    });
+  }
+
+  /**
+   * Extracts audio stream from a video file using FFmpeg and saves as a 16kHz mono WAV.
    * Returns the path to the extracted audio file.
    */
   public async extractAudioFromVideo(videoPath: string): Promise<string> {
-    const audioOutputPath = `${videoPath}.extracted.mp3`;
+    const hasAudio = await this.hasAudioStream(videoPath);
+    if (!hasAudio) {
+      throw new Error('This video has no audio track');
+    }
+
+    const audioOutputPath = `${videoPath}.extracted.wav`;
     
     // If already extracted and valid, return it
     if (fs.existsSync(audioOutputPath) && fs.statSync(audioOutputPath).size > 1000) {
       return audioOutputPath;
     }
 
-    return new Promise<string>((resolve) => {
-      // ffmpeg -y -i input.mp4 -vn -acodec libmp3lame -ar 16000 -ac 1 -b:a 128k output.mp3
+    return new Promise<string>((resolve, reject) => {
       const args = [
         '-y',
         '-i', videoPath,
         '-vn',
-        '-acodec', 'libmp3lame',
-        '-ar', '16000',
         '-ac', '1',
-        '-b:a', '128k',
+        '-ar', '16000',
+        '-c:a', 'pcm_s16le',
         audioOutputPath
       ];
 
       execFile('ffmpeg', args, { maxBuffer: 10 * 1024 * 1024 }, (err, _stdout, stderr) => {
         if (err || !fs.existsSync(audioOutputPath) || fs.statSync(audioOutputPath).size < 100) {
-          console.warn('[AudioService] FFmpeg extraction notice, attempting secondary stream copy:', stderr || err?.message);
-          
-          const fallbackPath = `${videoPath}.extracted.aac`;
-          const fallbackArgs = ['-y', '-i', videoPath, '-vn', '-c:a', 'copy', fallbackPath];
-          execFile('ffmpeg', fallbackArgs, { maxBuffer: 10 * 1024 * 1024 }, (err2) => {
-            if (!err2 && fs.existsSync(fallbackPath) && fs.statSync(fallbackPath).size > 100) {
-              return resolve(fallbackPath);
-            }
-            // If ffmpeg fails, pass original video directly (whisper python script can decode many media containers)
-            resolve(videoPath);
-          });
-          return;
+          const errMsg = stderr || err?.message || 'FFmpeg extraction failed';
+          return reject(new Error(`Failed to extract audio from video: ${errMsg}`));
         }
 
         resolve(audioOutputPath);
@@ -91,13 +99,9 @@ export class AudioService {
 
     // If input is a video file, seamlessly extract audio track in background
     if (filePath && fs.existsSync(filePath) && this.isVideoFile(filePath)) {
-      try {
-        console.log(`[AudioService] Ingested video file (${path.extname(filePath)}). Extracting audio track with FFmpeg...`);
-        effectiveAudioPath = await this.extractAudioFromVideo(filePath);
-        console.log(`[AudioService] Extracted audio track ready at: ${effectiveAudioPath}`);
-      } catch (extractErr) {
-        console.warn('[AudioService] Video audio extraction fallback to direct file:', extractErr);
-      }
+      console.log(`[AudioService] Ingested video file (${path.extname(filePath)}). Extracting audio track with FFmpeg...`);
+      effectiveAudioPath = await this.extractAudioFromVideo(filePath);
+      console.log(`[AudioService] Extracted audio track ready at: ${effectiveAudioPath}`);
     }
 
     if (effectiveAudioPath && fs.existsSync(effectiveAudioPath)) {

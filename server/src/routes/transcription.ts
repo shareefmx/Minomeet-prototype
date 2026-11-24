@@ -176,8 +176,15 @@ router.post('/test', async (_req: Request, res: Response) => {
 router.post('/open-folder', async (_req: Request, res: Response) => {
   const modelsDir = path.join(__dirname, '../../models');
   try {
-    const { exec } = await import('child_process');
-    exec('open "' + modelsDir + '"');
+    const { spawn } = await import('child_process');
+    const platform = process.platform;
+    if (platform === 'darwin') {
+      spawn('open', [modelsDir], { detached: true, stdio: 'ignore' });
+    } else if (platform === 'win32') {
+      spawn('explorer', [modelsDir], { detached: true, stdio: 'ignore' });
+    } else {
+      spawn('xdg-open', [modelsDir], { detached: true, stdio: 'ignore' });
+    }
   } catch {}
   res.json({ success: true, path: modelsDir });
 });
